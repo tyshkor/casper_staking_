@@ -1,28 +1,17 @@
-use alloc::vec::Vec;
-use casper_types::Key;
 
-use crate::TokenId;
+use casper_types::U256;
+
 
 pub enum CEP47Event {
-    Mint {
-        recipient: Key,
-        token_ids: Vec<TokenId>,
+    Stake {
+        amount: U256,
     },
-    Burn {
-        owner: Key,
-        token_ids: Vec<TokenId>,
+    Withdraw {
+        amount: U256,
     },
-    Approve {
-        owner: Key,
-        spender: Key,
-        token_ids: Vec<TokenId>,
-    },
-    Transfer {
-        sender: Key,
-        recipient: Key,
-        token_ids: Vec<TokenId>,
-    },
-    MetadataUpdate {
-        token_id: TokenId,
-    },
+    AddReward {
+        reward_amount: U256,
+        withdrawable_amount: U256
+    }
+
 }

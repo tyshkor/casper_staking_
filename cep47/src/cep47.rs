@@ -1,19 +1,24 @@
 use crate::{
-    data::{self, Allowances, Metadata, OwnedTokens, Owners},
+    data::{self, StakedTokens},
     event::CEP47Event,
     Meta, TokenId,
 };
 use alloc::{string::String, vec::Vec};
-use casper_types::{ApiError, Key, U256};
+use casper_types::{ApiError, Key, U256, runtime_args, ContractPackageHash};
 use contract_utils::{ContractContext, ContractStorage};
 use core::convert::TryInto;
-
+use casper_contract::contract_api::runtime;
+use casper_types::ContractHash;
+use crate::detail;
 #[repr(u16)]
 pub enum Error {
     PermissionDenied = 1,
     WrongArguments = 2,
-    TokenIdAlreadyExists = 3,
-    TokenIdDoesntExist = 4,
+    NotRequiredStake = 3,
+    BadTiming = 4,
+    InvalidContext = 5,
+    NegativeReward =6,
+    NegativeWithdrawableReward = 7
 }
 
 impl From<Error> for ApiError {
@@ -22,261 +27,189 @@ impl From<Error> for ApiError {
     }
 }
 
-pub trait CEP47<Storage: ContractStorage>: ContractContext<Storage> {
-    fn init(&mut self, name: String, symbol: String, meta: Meta) {
+pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
+    fn init(&mut self,
+        name: String,
+        address: String, 
+        staking_starts: U256,
+        staking_ends: U256,
+        withdraw_starts: U256,
+        withdraw_ends: U256,
+        staking_total: U256
+        ) {
         data::set_name(name);
-        data::set_symbol(symbol);
-        data::set_meta(meta);
-        data::set_total_supply(U256::zero());
-        Owners::init();
-        OwnedTokens::init();
-        Metadata::init();
-        Allowances::init();
+        data::set_address(address);
+        data::set_staking_starts(staking_starts);
+        data::set_staking_ends(staking_ends);
+        data::set_withdraw_starts(withdraw_starts);
+        data::set_withdraw_ends(withdraw_ends);
+        data::set_staking_total(staking_total);
+        StakedTokens::init();
     }
 
     fn name(&self) -> String {
         data::name()
     }
 
-    fn symbol(&self) -> String {
-        data::symbol()
+    fn address(&self) -> String {
+        data::address()
     }
 
-    fn meta(&self) -> Meta {
-        data::meta()
+    fn staking_starts(&self) -> U256 {
+        data::staking_starts()
     }
 
-    fn total_supply(&self) -> U256 {
-        data::total_supply()
+    fn staking_ends(&self) -> U256 {
+        data::staking_ends()
     }
 
-    fn balance_of(&self, owner: Key) -> U256 {
-        OwnedTokens::instance().get_balances(&owner)
+    fn withdraw_starts(&self) -> U256 {
+        data::withdraw_starts()
     }
 
-    fn owner_of(&self, token_id: TokenId) -> Option<Key> {
-        Owners::instance().get(&token_id)
+    fn withdraw_ends(&self) -> U256 {
+        data::withdraw_ends()
     }
 
-    fn token_meta(&self, token_id: TokenId) -> Option<Meta> {
-        Metadata::instance().get(&token_id)
+    fn staking_total(&self) -> U256 {
+        data::staking_total()
     }
 
-    fn set_token_meta(&mut self, token_id: TokenId, meta: Meta) -> Result<(), Error> {
-        if self.owner_of(token_id).is_none() {
-            return Err(Error::TokenIdDoesntExist);
+    fn amount_staked(&self, staker: Key) -> U256 {
+        StakedTokens::instance().get_amount_staked_by_address(&staker).unwrap()
+        }
+    }
+
+
+    fn stake(
+        &mut self,
+        amount: U256
+    ) -> Result<U256, Error> {
+
+        if amount < U256::from(2) {
+            return Err(Error::NotRequiredStake);
+        } 
+
+        if runtime::get_blocktime() < self.staking_starts() {
+            return Err(Error::BadTiming);
+        }
+
+        if runtime::get_blocktime() >= self.staking_ends() {
+            return Err(Error::BadTiming);
+        }
+
+        let stakers_dict = StakedTokens::instance();
+        let lower_contracthash =
+        "contract-c9a9e704604260416bf908cb6274e5d765b36164cf1fb9597a0df67ec4063bfa".to_lowercase();
+        let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
+        
+        let lower_contractpackagehash = "hash-wasmc4929e7fcb71772c1cb39ebb702a70d036b0ad4f9caf420d3fd377f749dfdb17".to_lowercase();
+        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash); 
+
+        let args = runtime_args! {
+            "owner" => detail::get_immediate_caller_address()?,
+            "recipient" => contract_package_hash,
+            "amount" => amount
+    
         };
+        runtime::call_contract(contract_hash,"transfer_from", args);
+        stakers_dict.add_stake(&Key::from(detail::get_immediate_caller_address()?), &amount);
 
-        let metadata_dict = Metadata::instance();
-        metadata_dict.set(&token_id, meta);
-
-        self.emit(CEP47Event::MetadataUpdate { token_id });
-        Ok(())
+        self.emit(CEP47Event::Stake {
+            amount,
+        });
+        Ok(amount)
     }
 
-    fn get_token_by_index(&self, owner: Key, index: U256) -> Option<TokenId> {
-        OwnedTokens::instance().get_token_by_index(&owner, &index)
-    }
 
-    fn validate_token_ids(&self, token_ids: Vec<TokenId>) -> bool {
-        for token_id in &token_ids {
-            if self.owner_of(*token_id).is_some() {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn mint(
+    fn withdraw(
         &mut self,
-        recipient: Key,
-        token_ids: Vec<TokenId>,
-        token_metas: Vec<Meta>,
-    ) -> Result<Vec<TokenId>, Error> {
-        if token_ids.len() != token_metas.len() {
-            return Err(Error::WrongArguments);
+        amount: U256
+    ) -> Result<U256, Error> {
+
+        if amount < U256::from(2) {
+           return Err(Error::NotRequiredStake);
+        } 
+
+        if runtime::get_blocktime() < self.staking_starts() {
+            return Err(Error::BadTiming);
+        }
+
+        if runtime::get_blocktime() >= self.staking_ends() {
+            return Err(Error::BadTiming);
+        }
+
+        let stakers_dict = StakedTokens::instance();
+        let lower_contracthash =
+        "contract-c9a9e704604260416bf908cb6274e5d765b36164cf1fb9597a0df67ec4063bfa".to_lowercase();
+        let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
+
+        let lower_contractpackagehash = "hash-4929e7fcb71772c1cb39ebb702a70d036b0ad4f9caf420d3fd377f749dfdb17".to_lowercase();
+        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash);
+
+        let args = runtime_args! {
+            "recipient" => detail::get_immediate_caller_address()?,
+            "amount" => amount
+    
         };
+        runtime::call_contract(contract_hash,"transfer", args);
+        stakers_dict.withdraw_stake(&Key::from(detail::get_immediate_caller_address()?), &amount);
 
-        for token_id in &token_ids {
-            if self.owner_of(*token_id).is_some() {
-                return Err(Error::TokenIdAlreadyExists);
-            }
-        }
-
-        let owners_dict = Owners::instance();
-        let owned_tokens_dict = OwnedTokens::instance();
-        let metadata_dict = Metadata::instance();
-
-        for (token_id, token_meta) in token_ids.iter().zip(&token_metas) {
-            metadata_dict.set(token_id, token_meta.clone());
-            owners_dict.set(token_id, recipient);
-            owned_tokens_dict.set_token(&recipient, token_id);
-        }
-
-        let minted_tokens_count: U256 = From::<u64>::from(token_ids.len().try_into().unwrap());
-        let new_total_supply = data::total_supply()
-            .checked_add(minted_tokens_count)
-            .unwrap();
-        data::set_total_supply(new_total_supply);
-
-        self.emit(CEP47Event::Mint {
-            recipient,
-            token_ids: token_ids.clone(),
+        self.emit(CEP47Event::Stake {
+            amount,
         });
-        Ok(token_ids)
+        Ok(amount)
     }
 
-    fn mint_copies(
+    fn add_reward(
         &mut self,
-        recipient: Key,
-        token_ids: Vec<TokenId>,
-        token_meta: Meta,
-        count: u32,
-    ) -> Result<Vec<TokenId>, Error> {
-        let token_metas = vec![token_meta; count.try_into().unwrap()];
-        self.mint(recipient, token_ids, token_metas)
-    }
+        reward_amount: U256,
+        withdrawable_amount: U256
+    ) -> Result<U256, Error> {
 
-    fn burn(&mut self, owner: Key, token_ids: Vec<TokenId>) -> Result<(), Error> {
-        let spender = self.get_caller();
-        if spender != owner {
-            for token_id in &token_ids {
-                if !self.is_approved(owner, *token_id, spender) {
-                    return Err(Error::PermissionDenied);
-                }
-            }
-        }
-        self.burn_internal(owner, token_ids)
-    }
-
-    fn burn_internal(&mut self, owner: Key, token_ids: Vec<TokenId>) -> Result<(), Error> {
-        let owners_dict = Owners::instance();
-        let owned_tokens_dict = OwnedTokens::instance();
-        let metadata_dict = Metadata::instance();
-        let allowances_dict = Allowances::instance();
-
-        for token_id in &token_ids {
-            match owners_dict.get(token_id) {
-                Some(owner_of_key) => {
-                    if owner_of_key != owner {
-                        return Err(Error::PermissionDenied);
-                    }
-                }
-                None => {
-                    return Err(Error::TokenIdDoesntExist);
-                }
-            }
+        if runtime::get_blocktime() >= self.withdraw_starts() {
+            return Err(Error::PermissionDenied)
         }
 
-        for token_id in &token_ids {
-            owned_tokens_dict.remove_token(&owner, token_id);
-            metadata_dict.remove(token_id);
-            owners_dict.remove(token_id);
-            allowances_dict.remove(&owner, token_id);
+        if reward_amount <= U256::from(0) {
+            return Err(Error::NegativeReward)
         }
 
-        let burnt_tokens_count: U256 = From::<u64>::from(token_ids.len().try_into().unwrap());
-        let new_total_supply = data::total_supply()
-            .checked_sub(burnt_tokens_count)
-            .unwrap();
-        data::set_total_supply(new_total_supply);
-
-        self.emit(CEP47Event::Burn { owner, token_ids });
-        Ok(())
-    }
-
-    fn approve(&mut self, spender: Key, token_ids: Vec<TokenId>) -> Result<(), Error> {
-        let caller = self.get_caller();
-        for token_id in &token_ids {
-            match self.owner_of(*token_id) {
-                None => return Err(Error::WrongArguments),
-                Some(owner) if owner != caller => return Err(Error::PermissionDenied),
-                Some(_) => Allowances::instance().set(&caller, token_id, spender),
-            }
+        if withdrawable_amount < U256::from(0) {
+            return Err(Error::NegativeWithdrawableReward)
         }
-        self.emit(CEP47Event::Approve {
-            owner: caller,
-            spender,
-            token_ids,
+
+        if withdrawable_amount > reward_amount {
+            return Err(Error::NegativeWithdrawableReward)
+        }
+
+        let lower_contracthash =
+        "contract-c9a9e704604260416bf908cb6274e5d765b36164cf1fb9597a0df67ec4063bfa".to_lowercase();
+        let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
+        
+        let lower_contractpackagehash = "hash-wasmc4929e7fcb71772c1cb39ebb702a70d036b0ad4f9caf420d3fd377f749dfdb17".to_lowercase();
+        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash); 
+
+        let args = runtime_args! {
+            "owner" => detail::get_immediate_caller_address()?,
+            "recipient" => contract_package_hash,
+            "amount" => reward_amount + withdrawable_amount
+    
+        };
+        runtime::call_contract(contract_hash,"transfer_from", args);
+
+        self.emit(CEP47Event::AddReward
+             {
+            reward_amount,
+            withdrawable_amount
         });
-        Ok(())
+        Ok(reward_amount)
     }
+    
 
-    fn get_approved(&self, owner: Key, token_id: TokenId) -> Option<Key> {
-        Allowances::instance().get(&owner, &token_id)
-    }
-
-    fn transfer(&mut self, recipient: Key, token_ids: Vec<TokenId>) -> Result<(), Error> {
-        self.transfer_from(self.get_caller(), recipient, token_ids)
-    }
-
-    fn transfer_from(
-        &mut self,
-        owner: Key,
-        recipient: Key,
-        token_ids: Vec<TokenId>,
-    ) -> Result<(), Error> {
-        let spender = self.get_caller();
-
-        if owner != spender {
-            let allowances_dict = Allowances::instance();
-            for token_id in &token_ids {
-                if !self.is_approved(owner, *token_id, spender) {
-                    return Err(Error::PermissionDenied);
-                }
-                allowances_dict.remove(&owner, token_id);
-            }
-        }
-        self.transfer_from_internal(owner, recipient, token_ids)
-    }
-
-    fn transfer_from_internal(
-        &mut self,
-        owner: Key,
-        recipient: Key,
-        token_ids: Vec<TokenId>,
-    ) -> Result<(), Error> {
-        let owners_dict = Owners::instance();
-        let owned_tokens_dict = OwnedTokens::instance();
-
-        for token_id in &token_ids {
-            match owners_dict.get(token_id) {
-                Some(owner_of_key) => {
-                    if owner_of_key != owner {
-                        return Err(Error::PermissionDenied);
-                    }
-                }
-                None => {
-                    return Err(Error::TokenIdDoesntExist);
-                }
-            }
-        }
-
-        for token_id in &token_ids {
-            owned_tokens_dict.remove_token(&owner, token_id);
-            owned_tokens_dict.set_token(&recipient, token_id);
-            owners_dict.set(token_id, recipient);
-        }
-
-        self.emit(CEP47Event::Transfer {
-            sender: owner,
-            recipient,
-            token_ids,
-        });
-        Ok(())
-    }
-
-    fn is_approved(&self, owner: Key, token_id: TokenId, spender: Key) -> bool {
-        let allowances_dict = Allowances::instance();
-        if let Some(spender_of) = allowances_dict.get(&owner, &token_id) {
-            if spender_of == spender {
-                return true;
-            }
-        }
-        false
-    }
+    
 
     fn emit(&mut self, event: CEP47Event) {
         data::emit(&event);
     }
-}
+
