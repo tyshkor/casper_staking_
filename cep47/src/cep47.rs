@@ -1,15 +1,16 @@
 use crate::{
     data::{self, StakedTokens},
-    event::CEP47Event,
-    Meta, TokenId,
+    event::CEP47Event
 };
-use alloc::{string::String, vec::Vec};
-use casper_types::{ApiError, Key, U256, runtime_args, ContractPackageHash};
+use casper_types::RuntimeArgs;
+use alloc::{string::String};
+use casper_types::{ApiError, Key, U256, BlockTime, runtime_args, ContractPackageHash};
 use contract_utils::{ContractContext, ContractStorage};
-use core::convert::TryInto;
+// use core::convert::TryInto;
 use casper_contract::contract_api::runtime;
 use casper_types::ContractHash;
 use crate::detail;
+
 #[repr(u16)]
 pub enum Error {
     PermissionDenied = 1,
@@ -31,10 +32,10 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     fn init(&mut self,
         name: String,
         address: String, 
-        staking_starts: U256,
-        staking_ends: U256,
-        withdraw_starts: U256,
-        withdraw_ends: U256,
+        staking_starts: u64,
+        staking_ends: u64,
+        withdraw_starts: u64,
+        withdraw_ends: u64,
         staking_total: U256
         ) {
         data::set_name(name);
@@ -55,19 +56,19 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::address()
     }
 
-    fn staking_starts(&self) -> U256 {
+    fn staking_starts(&self) -> u64 {
         data::staking_starts()
     }
 
-    fn staking_ends(&self) -> U256 {
+    fn staking_ends(&self) -> u64 {
         data::staking_ends()
     }
 
-    fn withdraw_starts(&self) -> U256 {
+    fn withdraw_starts(&self) -> u64 {
         data::withdraw_starts()
     }
 
-    fn withdraw_ends(&self) -> U256 {
+    fn withdraw_ends(&self) -> u64 {
         data::withdraw_ends()
     }
 
@@ -78,7 +79,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     fn amount_staked(&self, staker: Key) -> U256 {
         StakedTokens::instance().get_amount_staked_by_address(&staker).unwrap()
         }
-    }
+
 
 
     fn stake(
@@ -89,12 +90,11 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         if amount < U256::from(2) {
             return Err(Error::NotRequiredStake);
         } 
-
-        if runtime::get_blocktime() < self.staking_starts() {
+        if runtime::get_blocktime() >= BlockTime::new(self.staking_starts()) {
             return Err(Error::BadTiming);
         }
 
-        if runtime::get_blocktime() >= self.staking_ends() {
+        if runtime::get_blocktime() >= BlockTime::new(self.staking_ends()) {
             return Err(Error::BadTiming);
         }
 
@@ -104,15 +104,14 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
         
         let lower_contractpackagehash = "hash-wasmc4929e7fcb71772c1cb39ebb702a70d036b0ad4f9caf420d3fd377f749dfdb17".to_lowercase();
-        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash); 
+        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash).unwrap(); 
 
         let args = runtime_args! {
             "owner" => detail::get_immediate_caller_address()?,
             "recipient" => contract_package_hash,
             "amount" => amount
-    
         };
-        runtime::call_contract(contract_hash,"transfer_from", args);
+        runtime::call_contract::<String>(contract_hash,"transfer_from", args);
         stakers_dict.add_stake(&Key::from(detail::get_immediate_caller_address()?), &amount);
 
         self.emit(CEP47Event::Stake {
@@ -130,12 +129,11 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         if amount < U256::from(2) {
            return Err(Error::NotRequiredStake);
         } 
-
-        if runtime::get_blocktime() < self.staking_starts() {
+        if runtime::get_blocktime() >= BlockTime::new(self.staking_starts()) {
             return Err(Error::BadTiming);
         }
 
-        if runtime::get_blocktime() >= self.staking_ends() {
+        if runtime::get_blocktime() >= BlockTime::new(self.staking_ends()) {
             return Err(Error::BadTiming);
         }
 
@@ -145,14 +143,14 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
 
         let lower_contractpackagehash = "hash-4929e7fcb71772c1cb39ebb702a70d036b0ad4f9caf420d3fd377f749dfdb17".to_lowercase();
-        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash);
+        let _contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash).unwrap();
 
         let args = runtime_args! {
             "recipient" => detail::get_immediate_caller_address()?,
             "amount" => amount
     
         };
-        runtime::call_contract(contract_hash,"transfer", args);
+        runtime::call_contract::<String>(contract_hash,"transfer", args);
         stakers_dict.withdraw_stake(&Key::from(detail::get_immediate_caller_address()?), &amount);
 
         self.emit(CEP47Event::Stake {
@@ -166,8 +164,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         reward_amount: U256,
         withdrawable_amount: U256
     ) -> Result<U256, Error> {
-
-        if runtime::get_blocktime() >= self.withdraw_starts() {
+        if runtime::get_blocktime() >= BlockTime::new(self.withdraw_starts()) {
             return Err(Error::PermissionDenied)
         }
 
@@ -188,7 +185,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
         
         let lower_contractpackagehash = "hash-wasmc4929e7fcb71772c1cb39ebb702a70d036b0ad4f9caf420d3fd377f749dfdb17".to_lowercase();
-        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash); 
+        let contract_package_hash = ContractPackageHash::from_formatted_str(&lower_contractpackagehash).unwrap(); 
 
         let args = runtime_args! {
             "owner" => detail::get_immediate_caller_address()?,
@@ -196,7 +193,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             "amount" => reward_amount + withdrawable_amount
     
         };
-        runtime::call_contract(contract_hash,"transfer_from", args);
+        runtime::call_contract::<String>(contract_hash,"transfer_from", args);
 
         self.emit(CEP47Event::AddReward
              {
@@ -207,9 +204,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     }
     
 
-    
-
     fn emit(&mut self, event: CEP47Event) {
         data::emit(&event);
     }
-
+}

@@ -2,11 +2,11 @@
 name = "cep47"
 version = "0.2.0"
 authors = ["astro019 <dmitry.yakov7@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 hex = { version = "0.4.3", default-features = false }
-casper-contract = "1.4.3"
+casper-contract = "1.4.4"
 casper-types = "1.4.4"
 contract-utils = { path = "../utils/contract-utils" }
 
