@@ -1,2 +1,2 @@
 # casper_staking
-Casper Staking Smart Contract
+Casper Staking Smart Contracts
