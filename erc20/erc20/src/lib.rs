@@ -175,9 +175,8 @@ impl ERC20 {
             return Ok(());
         }
         let spender_allowance = self.read_allowance(owner, spender);
-        let spender_allowance_u16: u16 = spender_allowance.try_into().unwrap();
         let new_spender_allowance = spender_allowance
-            .checked_sub(amount).unwrap_or_revert_with(Error::UserAllowance(spender_allowance_u16));
+            .checked_sub(amount).unwrap_or_revert_with(Error::UserAllowance(spender_allowance.as_u128() as u16));
         self.transfer_balance(owner, recipient, amount).unwrap_or_revert_with(Error::User(7001u16));
 
         self.write_allowance(owner, spender, new_spender_allowance);
