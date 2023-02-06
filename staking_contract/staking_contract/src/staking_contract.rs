@@ -153,8 +153,11 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         let mut remaining_token = amount;
 
         // ?
-        if remaining_token > (self.staking_total() - remaining_token) {
-            remaining_token = self.staking_total() - remaining_token;
+
+        if let Some(diff) = self.staking_total().checked_sub(remaining_token) {
+            if remaining_token > diff {
+                remaining_token = diff;
+            }
         }
 
         if remaining_token <= U256::from(0u64) {
