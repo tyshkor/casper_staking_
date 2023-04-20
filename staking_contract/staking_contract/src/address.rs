@@ -1,10 +1,14 @@
 //! Implementation of an `Address` which refers either an account hash, or a contract hash.
-use alloc::vec::Vec;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use casper_types::{
     account::AccountHash,
     bytesrepr::{self, FromBytes, ToBytes},
     CLType, CLTyped, ContractHash, ContractPackageHash, Key,
 };
+use core::convert::TryInto;
 
 /// An enum representing an [`AccountHash`] or a [`ContractPackageHash`].
 #[derive(PartialOrd, Ord, PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -91,5 +95,19 @@ impl FromBytes for Address {
         };
 
         Ok((address, remainder))
+    }
+}
+
+impl TryInto<String> for Address {
+    type Error = crate::error::Error;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        if let Some(account_hash) = self.as_account_hash() {
+            Ok(account_hash.to_string())
+        } else if let Some(contract_package_hash) = self.as_contract_package_hash() {
+            Ok(contract_package_hash.to_string())
+        } else {
+            Err(Self::Error::NeitherAccountHashNorNeitherContractPackageHash)
+        }
     }
 }
