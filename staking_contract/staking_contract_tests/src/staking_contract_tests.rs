@@ -1,20 +1,17 @@
-use std::collections::BTreeMap;
-
-use casper_engine_test_support::{
-    ExecuteRequestBuilder, InMemoryWasmTestBuilder, WasmTestBuilder, DEFAULT_ACCOUNT_ADDR,
-    DEFAULT_ACCOUNT_KEY, DEFAULT_RUN_GENESIS_REQUEST,
-};
-use casper_execution_engine::storage::global_state::in_memory::InMemoryGlobalState;
-use casper_types::bytesrepr::{FromBytes, ToBytes};
-use casper_types::{account::AccountHash, runtime_args, Key, U256};
-use casper_types::{CLTyped, ContractHash, ContractPackageHash, RuntimeArgs, URef, BLAKE2B_DIGEST_LENGTH};
-use test_env::TestEnv;
 use blake2::{
     digest::{Update, VariableOutput},
     VarBlake2b,
 };
+use casper_engine_test_support::{
+    ExecuteRequestBuilder, InMemoryWasmTestBuilder, WasmTestBuilder, DEFAULT_ACCOUNT_ADDR,
+    DEFAULT_RUN_GENESIS_REQUEST,
+};
+use casper_execution_engine::storage::global_state::in_memory::InMemoryGlobalState;
+use casper_types::{
+    bytesrepr::ToBytes, runtime_args, ContractHash, ContractPackageHash, Key, RuntimeArgs,
+    BLAKE2B_DIGEST_LENGTH, U256,
+};
 
-const NAME: &str = "staking";
 const ADDRESS: &str = "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d";
 
 const ERC20_WASM: &str = "erc20.wasm";
@@ -46,8 +43,11 @@ fn test_approve_and_stake() {
         .commit();
 
     let erc20_contract_hash = get_erc20_contract_hash(&builder);
-    
-    println!("erc20_contract_hash {:?}", erc20_contract_hash.to_formatted_string());
+
+    println!(
+        "erc20_contract_hash {:?}",
+        erc20_contract_hash.to_formatted_string()
+    );
     let mint_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
         erc20_contract_hash,
@@ -111,10 +111,11 @@ fn test_approve_and_stake() {
 
     builder.exec(approve_request).expect_success().commit();
 
-    let actual_allowance = allowance_dictionary(&builder,
+    let actual_allowance = allowance_dictionary(
+        &builder,
         erc20_contract_key,
         Key::Account(*DEFAULT_ACCOUNT_ADDR),
-        staking_contract_key
+        staking_contract_key,
     );
 
     assert_eq!(actual_allowance, U256::from(10i64));
@@ -122,7 +123,6 @@ fn test_approve_and_stake() {
     let stake_args = runtime_args! {
         "amount" => U256::from(5i64),
     };
-
 
     let stake_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
@@ -146,8 +146,454 @@ fn test_approve_and_stake() {
     )
     .build();
 
+    builder
+        .exec(balance_of_request)
+        .expect_success()
+        .commit()
+        .get_exec_results();
+}
 
-    builder.exec(balance_of_request).expect_success().commit().get_exec_results();
+#[test]
+fn test_approve_and_stake_and_amount_staked() {
+    let mut builder = InMemoryWasmTestBuilder::default();
+    builder.run_genesis(&DEFAULT_RUN_GENESIS_REQUEST).commit();
+
+    let erc20_runtime_args = runtime_args! {
+        "name" => "FERRUM_ERC20".to_string(),
+        "symbol" => "F_ERC20".to_string(),
+        "total_supply" => U256::from(500000i64),
+        "decimals" => 8u8,
+    };
+
+    let erc_20_install_request =
+        ExecuteRequestBuilder::standard(*DEFAULT_ACCOUNT_ADDR, ERC20_WASM, erc20_runtime_args)
+            .build();
+
+    builder
+        .exec(erc_20_install_request)
+        .expect_success()
+        .commit();
+
+    let erc20_contract_hash = get_erc20_contract_hash(&builder);
+
+    println!(
+        "erc20_contract_hash {:?}",
+        erc20_contract_hash.to_formatted_string()
+    );
+    let mint_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "mint",
+        runtime_args! {},
+    )
+    .build();
+
+    builder.exec(mint_request).expect_success().commit();
+
+    let erc20_contract_key: Key = erc20_contract_hash.into();
+
+    let balance = balance_dictionary(
+        &builder,
+        erc20_contract_key,
+        Key::Account(*DEFAULT_ACCOUNT_ADDR),
+    );
+    assert_eq!(balance, U256::from(510000u64));
+
+    let staking_contract_runtime_args = runtime_args! {
+        "name" => "FerrumX".to_string(),
+        "address" => "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d".to_string(),
+        "staking_starts" => 0u64,
+        "staking_ends" => 1755994649u64,
+        "withdraw_starts" => 0u64,
+        "withdraw_ends" => 1755994649u64,
+        "staking_total" => U256::from(500000i64),
+        "erc20_contract_hash" => erc20_contract_hash.to_formatted_string(),
+    };
+
+    let staking_contract_install_request = ExecuteRequestBuilder::standard(
+        *DEFAULT_ACCOUNT_ADDR,
+        STAKING_WASM,
+        staking_contract_runtime_args,
+    )
+    .build();
+
+    builder
+        .exec(staking_contract_install_request)
+        .expect_success()
+        .commit();
+
+    let staking_contract_package_hash = get_stacking_contract_package_hash(&builder);
+
+    let staking_contract_hash = get_stacking_contract_hash(&builder);
+
+    let staking_contract_key: Key = staking_contract_package_hash.into();
+
+    let approve_args = runtime_args! {
+        "spender" => staking_contract_key,
+        "amount" => U256::from(10i64),
+    };
+
+    let approve_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "approve",
+        approve_args,
+    )
+    .build();
+
+    builder.exec(approve_request).expect_success().commit();
+
+    let actual_allowance = allowance_dictionary(
+        &builder,
+        erc20_contract_key,
+        Key::Account(*DEFAULT_ACCOUNT_ADDR),
+        staking_contract_key,
+    );
+
+    assert_eq!(actual_allowance, U256::from(10i64));
+
+    let stake_args = runtime_args! {
+        "amount" => U256::from(5i64),
+    };
+
+    let stake_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        staking_contract_hash,
+        "stake",
+        stake_args,
+    )
+    .build();
+
+    builder.exec(stake_request).expect_success().commit();
+
+    let balance_of_args = runtime_args! {
+        "address" => staking_contract_key,
+    };
+
+    let balance_of_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "balance_of",
+        balance_of_args,
+    )
+    .build();
+
+    builder
+        .exec(balance_of_request)
+        .expect_success()
+        .commit()
+        .get_exec_results();
+
+    let amount_staked_args = runtime_args! {
+        "staker" => Key::from(*DEFAULT_ACCOUNT_ADDR),
+    };
+
+    let amount_staked_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        staking_contract_hash,
+        "amount_staked",
+        amount_staked_args,
+    )
+    .build();
+
+    builder
+        .exec(amount_staked_request)
+        .expect_success()
+        .commit();
+}
+
+#[test]
+fn test_approve_and_stake_and_staker_reward() {
+    let mut builder = InMemoryWasmTestBuilder::default();
+    builder.run_genesis(&DEFAULT_RUN_GENESIS_REQUEST).commit();
+
+    let erc20_runtime_args = runtime_args! {
+        "name" => "FERRUM_ERC20".to_string(),
+        "symbol" => "F_ERC20".to_string(),
+        "total_supply" => U256::from(500000i64),
+        "decimals" => 8u8,
+    };
+
+    let erc_20_install_request =
+        ExecuteRequestBuilder::standard(*DEFAULT_ACCOUNT_ADDR, ERC20_WASM, erc20_runtime_args)
+            .build();
+
+    builder
+        .exec(erc_20_install_request)
+        .expect_success()
+        .commit();
+
+    let erc20_contract_hash = get_erc20_contract_hash(&builder);
+
+    println!(
+        "erc20_contract_hash {:?}",
+        erc20_contract_hash.to_formatted_string()
+    );
+    let mint_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "mint",
+        runtime_args! {},
+    )
+    .build();
+
+    builder.exec(mint_request).expect_success().commit();
+
+    let erc20_contract_key: Key = erc20_contract_hash.into();
+
+    let balance = balance_dictionary(
+        &builder,
+        erc20_contract_key,
+        Key::Account(*DEFAULT_ACCOUNT_ADDR),
+    );
+    assert_eq!(balance, U256::from(510000u64));
+
+    let staking_contract_runtime_args = runtime_args! {
+        "name" => "FerrumX".to_string(),
+        "address" => "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d".to_string(),
+        "staking_starts" => 0u64,
+        "staking_ends" => 1755994649u64,
+        "withdraw_starts" => 0u64,
+        "withdraw_ends" => 1755994649u64,
+        "staking_total" => U256::from(500000i64),
+        "erc20_contract_hash" => erc20_contract_hash.to_formatted_string(),
+    };
+
+    let staking_contract_install_request = ExecuteRequestBuilder::standard(
+        *DEFAULT_ACCOUNT_ADDR,
+        STAKING_WASM,
+        staking_contract_runtime_args,
+    )
+    .build();
+
+    builder
+        .exec(staking_contract_install_request)
+        .expect_success()
+        .commit();
+
+    let staking_contract_package_hash = get_stacking_contract_package_hash(&builder);
+
+    let staking_contract_hash = get_stacking_contract_hash(&builder);
+
+    let staking_contract_key: Key = staking_contract_package_hash.into();
+
+    let approve_args = runtime_args! {
+        "spender" => staking_contract_key,
+        "amount" => U256::from(10i64),
+    };
+
+    let approve_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "approve",
+        approve_args,
+    )
+    .build();
+
+    builder.exec(approve_request).expect_success().commit();
+
+    let actual_allowance = allowance_dictionary(
+        &builder,
+        erc20_contract_key,
+        Key::Account(*DEFAULT_ACCOUNT_ADDR),
+        staking_contract_key,
+    );
+
+    assert_eq!(actual_allowance, U256::from(10i64));
+
+    let stake_args = runtime_args! {
+        "amount" => U256::from(5i64),
+    };
+
+    let stake_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        staking_contract_hash,
+        "stake",
+        stake_args,
+    )
+    .build();
+
+    builder.exec(stake_request).expect_success().commit();
+
+    let balance_of_args = runtime_args! {
+        "address" => staking_contract_key,
+    };
+
+    let balance_of_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "balance_of",
+        balance_of_args,
+    )
+    .build();
+
+    builder
+        .exec(balance_of_request)
+        .expect_success()
+        .commit()
+        .get_exec_results();
+
+    let staker_reward_args = runtime_args! {
+        "staker_address" => Key::from(*DEFAULT_ACCOUNT_ADDR),
+    };
+
+    let staker_reward_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        staking_contract_hash,
+        "staker_reward",
+        staker_reward_args,
+    )
+    .build();
+
+    builder
+        .exec(staker_reward_request)
+        .expect_success()
+        .commit();
+}
+
+#[test]
+fn test_approve_and_stake_and_get_current_reward() {
+    let mut builder = InMemoryWasmTestBuilder::default();
+    builder.run_genesis(&DEFAULT_RUN_GENESIS_REQUEST).commit();
+
+    let erc20_runtime_args = runtime_args! {
+        "name" => "FERRUM_ERC20".to_string(),
+        "symbol" => "F_ERC20".to_string(),
+        "total_supply" => U256::from(500000i64),
+        "decimals" => 8u8,
+    };
+
+    let erc_20_install_request =
+        ExecuteRequestBuilder::standard(*DEFAULT_ACCOUNT_ADDR, ERC20_WASM, erc20_runtime_args)
+            .build();
+
+    builder
+        .exec(erc_20_install_request)
+        .expect_success()
+        .commit();
+
+    let erc20_contract_hash = get_erc20_contract_hash(&builder);
+
+    println!(
+        "erc20_contract_hash {:?}",
+        erc20_contract_hash.to_formatted_string()
+    );
+    let mint_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "mint",
+        runtime_args! {},
+    )
+    .build();
+
+    builder.exec(mint_request).expect_success().commit();
+
+    let erc20_contract_key: Key = erc20_contract_hash.into();
+
+    let balance = balance_dictionary(
+        &builder,
+        erc20_contract_key,
+        Key::Account(*DEFAULT_ACCOUNT_ADDR),
+    );
+    assert_eq!(balance, U256::from(510000u64));
+
+    let staking_contract_runtime_args = runtime_args! {
+        "name" => "FerrumX".to_string(),
+        "address" => "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d".to_string(),
+        "staking_starts" => 0u64,
+        "staking_ends" => 1755994649u64,
+        "withdraw_starts" => 0u64,
+        "withdraw_ends" => 1755994649u64,
+        "staking_total" => U256::from(500000i64),
+        "erc20_contract_hash" => erc20_contract_hash.to_formatted_string(),
+    };
+
+    let staking_contract_install_request = ExecuteRequestBuilder::standard(
+        *DEFAULT_ACCOUNT_ADDR,
+        STAKING_WASM,
+        staking_contract_runtime_args,
+    )
+    .build();
+
+    builder
+        .exec(staking_contract_install_request)
+        .expect_success()
+        .commit();
+
+    let staking_contract_package_hash = get_stacking_contract_package_hash(&builder);
+
+    let staking_contract_hash = get_stacking_contract_hash(&builder);
+
+    let staking_contract_key: Key = staking_contract_package_hash.into();
+
+    let approve_args = runtime_args! {
+        "spender" => staking_contract_key,
+        "amount" => U256::from(10i64),
+    };
+
+    let approve_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "approve",
+        approve_args,
+    )
+    .build();
+
+    builder.exec(approve_request).expect_success().commit();
+
+    let actual_allowance = allowance_dictionary(
+        &builder,
+        erc20_contract_key,
+        Key::Account(*DEFAULT_ACCOUNT_ADDR),
+        staking_contract_key,
+    );
+
+    assert_eq!(actual_allowance, U256::from(10i64));
+
+    let stake_args = runtime_args! {
+        "amount" => U256::from(5i64),
+    };
+
+    let stake_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        staking_contract_hash,
+        "stake",
+        stake_args,
+    )
+    .build();
+
+    builder.exec(stake_request).expect_success().commit();
+
+    let balance_of_args = runtime_args! {
+        "address" => staking_contract_key,
+    };
+
+    let balance_of_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        erc20_contract_hash,
+        "balance_of",
+        balance_of_args,
+    )
+    .build();
+
+    builder
+        .exec(balance_of_request)
+        .expect_success()
+        .commit()
+        .get_exec_results();
+
+    let get_current_reward_request = ExecuteRequestBuilder::contract_call_by_hash(
+        *DEFAULT_ACCOUNT_ADDR,
+        staking_contract_hash,
+        "get_current_reward",
+        runtime_args! {},
+    )
+    .build();
+
+    builder
+        .exec(get_current_reward_request)
+        .expect_success()
+        .commit();
 }
 
 #[test]
@@ -172,8 +618,11 @@ fn test_approve_and_stake_and_withdraw() {
         .commit();
 
     let erc20_contract_hash = get_erc20_contract_hash(&builder);
-    
-    println!("erc20_contract_hash {:?}", erc20_contract_hash.to_formatted_string());
+
+    println!(
+        "erc20_contract_hash {:?}",
+        erc20_contract_hash.to_formatted_string()
+    );
     let mint_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
         erc20_contract_hash,
@@ -237,10 +686,11 @@ fn test_approve_and_stake_and_withdraw() {
 
     builder.exec(approve_request).expect_success().commit();
 
-    let actual_allowance = allowance_dictionary(&builder,
+    let actual_allowance = allowance_dictionary(
+        &builder,
         erc20_contract_key,
         Key::Account(*DEFAULT_ACCOUNT_ADDR),
-        staking_contract_key
+        staking_contract_key,
     );
 
     assert_eq!(actual_allowance, U256::from(10i64));
@@ -248,7 +698,6 @@ fn test_approve_and_stake_and_withdraw() {
     let stake_args = runtime_args! {
         "amount" => U256::from(5i64),
     };
-
 
     let stake_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
@@ -264,7 +713,6 @@ fn test_approve_and_stake_and_withdraw() {
         "amount" => U256::from(1u64),
     };
 
-
     let withdraw_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
         staking_contract_hash,
@@ -274,9 +722,7 @@ fn test_approve_and_stake_and_withdraw() {
     .build();
 
     builder.exec(withdraw_request).expect_success().commit();
-
 }
-
 
 #[test]
 fn test_approve_and_stake_and_add_reward() {
@@ -300,8 +746,11 @@ fn test_approve_and_stake_and_add_reward() {
         .commit();
 
     let erc20_contract_hash = get_erc20_contract_hash(&builder);
-    
-    println!("erc20_contract_hash {:?}", erc20_contract_hash.to_formatted_string());
+
+    println!(
+        "erc20_contract_hash {:?}",
+        erc20_contract_hash.to_formatted_string()
+    );
     let mint_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
         erc20_contract_hash,
@@ -365,10 +814,11 @@ fn test_approve_and_stake_and_add_reward() {
 
     builder.exec(approve_request).expect_success().commit();
 
-    let actual_allowance = allowance_dictionary(&builder,
+    let actual_allowance = allowance_dictionary(
+        &builder,
         erc20_contract_key,
         Key::Account(*DEFAULT_ACCOUNT_ADDR),
-        staking_contract_key
+        staking_contract_key,
     );
 
     assert_eq!(actual_allowance, U256::from(10i64));
@@ -376,7 +826,6 @@ fn test_approve_and_stake_and_add_reward() {
     let stake_args = runtime_args! {
         "amount" => U256::from(5i64),
     };
-
 
     let stake_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
@@ -393,7 +842,6 @@ fn test_approve_and_stake_and_add_reward() {
         "withdrawable_amount" => U256::from(1i64),
     };
 
-
     let add_reward_request = ExecuteRequestBuilder::contract_call_by_hash(
         *DEFAULT_ACCOUNT_ADDR,
         staking_contract_hash,
@@ -403,7 +851,6 @@ fn test_approve_and_stake_and_add_reward() {
     .build();
 
     builder.exec(add_reward_request).expect_success().commit();
-
 }
 
 /// Creates a dictionary item key for an (owner, spender) pair.
@@ -428,7 +875,9 @@ pub(crate) fn create_blake2b_hash<T: AsRef<[u8]>>(data: T) -> [u8; BLAKE2B_DIGES
     result
 }
 
-pub fn get_stacking_contract_package_hash(builder: &WasmTestBuilder<InMemoryGlobalState>) -> ContractPackageHash {
+pub fn get_stacking_contract_package_hash(
+    builder: &WasmTestBuilder<InMemoryGlobalState>,
+) -> ContractPackageHash {
     let erc20_hash_addr = builder
         .get_expected_account(*DEFAULT_ACCOUNT_ADDR)
         .named_keys()
@@ -451,8 +900,6 @@ pub fn get_stacking_contract_hash(builder: &WasmTestBuilder<InMemoryGlobalState>
 
     ContractHash::new(erc20_hash_addr)
 }
-
-
 
 pub(crate) fn get_erc20_contract_hash(
     builder: &WasmTestBuilder<InMemoryGlobalState>,
