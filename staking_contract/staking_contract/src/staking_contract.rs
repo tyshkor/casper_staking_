@@ -1,44 +1,15 @@
+use crate::detail;
+use crate::error::Error;
+use crate::modifiers;
 use crate::{
     address::Address,
     data::{self, StakedTokens},
-    event::CEP47Event,
+    event::StakingContractEvent,
 };
-use alloc::{
-    fmt::format,
-    string::{String, ToString},
-};
-use casper_types::{account::AccountHash, RuntimeArgs};
-use casper_types::{runtime_args, ApiError, BlockTime, ContractPackageHash, Key, U256};
-use contract_utils::{ContractContext, ContractStorage};
-// use core::convert::TryInto;
-use crate::detail;
-use crate::modifiers;
+use alloc::string::String;
 use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
-use casper_types::ContractHash;
-
-#[derive(Debug)]
-#[repr(u16)]
-pub enum Error {
-    PermissionDenied = 1,
-    WrongArguments = 2,
-    NotRequiredStake = 3,
-    BadTiming = 4,
-    InvalidContext = 5,
-    NegativeReward = 6,
-    NegativeWithdrawableReward = 7,
-    NegativeAmount = 8,
-    MissingContractPackageHash = 9,
-    InvalidContractPackageHash = 10,
-    InvalidContractHash = 11,
-    WithdrawCheckErrorEarly = 12,
-    WithdrawCheckError = 13,
-}
-
-impl From<Error> for ApiError {
-    fn from(error: Error) -> ApiError {
-        ApiError::User(error as u16)
-    }
-}
+use casper_types::{runtime_args, BlockTime, ContractPackageHash, Key, RuntimeArgs, U256};
+use contract_utils::{ContractContext, ContractStorage};
 
 pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     fn init(
@@ -133,26 +104,29 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::set_staked_total(staked_total)
     }
 
-    fn amount_staked(&self, staker: Key) -> U256 {
+    fn amount_staked(&self, staker: Key) -> Result<U256, Error> {
         StakedTokens::instance()
             .get_amount_staked_by_address(&staker)
-            .unwrap()
+            .ok_or(Error::NotAStaker)
     }
 
-    fn stake(&mut self, amount: U256) -> Result<U256, Error> {
-        // modifiers::positive(amount)?;
-        // modifiers::after(self.staking_starts())?;
-        // modifiers::before(self.staking_ends())?;
+    fn stake(
+        &mut self,
+        amount: U256,
+        staking_contract_package_hash: String,
+    ) -> Result<U256, Error> {
+        modifiers::positive(amount)?;
+        modifiers::after(self.staking_starts())?;
+        modifiers::before(self.staking_ends())?;
+        // check for has enough tokens
 
         let token_address = self.address();
 
         let stakers_dict = StakedTokens::instance();
-        let stacker_addr =
-            detail::get_immediate_caller_address().unwrap_or_revert_with(Error::NegativeReward);
+        let staker_address = detail::get_immediate_caller_address()
+            .unwrap_or_revert_with(Error::ImmediateCallerAddressFail);
 
         let mut remaining_token = amount;
-
-        // ?
 
         if let Some(diff) = self.staking_total().checked_sub(remaining_token) {
             if remaining_token > diff {
@@ -168,46 +142,41 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             return Err(Error::NotRequiredStake);
         }
 
-        self.pay_me(
-            detail::get_immediate_caller_address().unwrap_or_revert_with(Error::NegativeReward),
+        let staking_contract_package_hash =
+            ContractPackageHash::from_formatted_str(staking_contract_package_hash.as_str())
+                .map_err(|_| Error::NotStakingContractPackageHash)?;
+
+        self.pay_to(
+            staker_address,
+            crate::address::Address::ContractPackage(staking_contract_package_hash),
             remaining_token,
         );
 
-        // runtime::put_key("answer", remaining_token.into())
-
-        self.emit(CEP47Event::Stake { amount });
+        self.emit(StakingContractEvent::Stake {
+            token_address,
+            staker_address,
+            requested_amount: amount,
+            staked_amount: remaining_token,
+        });
 
         if remaining_token < amount {
             let refund = amount - remaining_token;
-            self.pay_direct(stacker_addr, refund)
+            self.pay_direct(staker_address, refund)
                 .unwrap_or_revert_with(Error::NegativeAmount);
         }
 
         self.set_staking_total(self.staking_total() + remaining_token);
-        stakers_dict.add_stake(&Key::from(stacker_addr), &remaining_token);
+        self.set_staked_balance(self.staked_balance() + remaining_token);
+        stakers_dict.add_stake(&Key::from(staker_address), &remaining_token);
         Ok(amount)
     }
 
     fn withdraw(&mut self, amount: U256) -> Result<U256, Error> {
         modifiers::positive(amount)?;
-        // modifiers::after(self.staking_starts())?;
+        modifiers::after(self.staking_starts())?;
 
         let stakers_dict = StakedTokens::instance();
         let caller_address = detail::get_immediate_caller_address()?;
-
-        // let message = format(format_args!("stakers_dict.get_amount_staked_by_address(&Key::from(caller_address)).unwrap() {:?}", stakers_dict.get_amount_staked_by_address(&Key::from(caller_address)).unwrap()));
-
-        // runtime::put_key(
-        //     &alloc::format!("{}_withdraw", message),
-        //     caller_address.into(),
-        // );
-
-        // let message_2 = format(format_args!("withdraw_ends is {:?}", self.withdraw_ends()));
-
-        // runtime::put_key(
-        //     &alloc::format!("{}_withdraw", message_2),
-        //     caller_address.into(),
-        // );
 
         if amount
             > stakers_dict
@@ -219,20 +188,15 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
 
         if runtime::get_blocktime() < BlockTime::new(self.staking_ends()) {
             self.withdraw_early(amount, caller_address)
-            // Err(Error::WithdrawCheckErrorEarly)
         } else {
-            // self.withdraw_after_close(amount, caller_address)
-            Err(Error::WithdrawCheckError)
+            self.withdraw_after_close(amount, caller_address)
         }
     }
 
     fn withdraw_early(&mut self, amount: U256, caller_address: Address) -> Result<U256, Error> {
-        // let message = format(format_args!("withdraw_early amount {:?}", amount));
-
-        // runtime::put_key(
-        //     &alloc::format!("{}_withdraw", message),
-        //     caller_address.into(),
-        // );
+        let staker_address = detail::get_immediate_caller_address()
+            .unwrap_or_revert_with(Error::ImmediateCallerAddressFail);
+        let token_address = self.address();
 
         let denom = U256::from(self.withdraw_ends() - self.staking_ends()) * self.staking_total();
 
@@ -242,11 +206,16 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         let pay_out = amount + reward;
 
         self.set_reward_balance(self.reward_balance() - reward);
-        // self.set_staked_balance(self.staked_balance() - amount);
+        self.set_staked_balance(self.staked_balance() - amount);
         let stakers_dict = StakedTokens::instance();
-        stakers_dict.withdraw_stake(&Key::from(caller_address), &amount);
+        stakers_dict.withdraw_stake(&Key::from(caller_address), &amount)?;
         self.pay_direct(caller_address, pay_out)?;
-        self.emit(CEP47Event::Withdraw { amount });
+        self.emit(StakingContractEvent::PaidOut {
+            staker_address,
+            token_address,
+            amount,
+            reward,
+        });
         Ok(amount)
     }
 
@@ -255,19 +224,21 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         amount: U256,
         caller_address: Address,
     ) -> Result<U256, Error> {
-        let message = format(format_args!("withdraw_after_close amount {:?}", amount));
-
-        runtime::put_key(
-            &alloc::format!("{}_withdraw", message),
-            caller_address.into(),
-        );
+        let staker_address = detail::get_immediate_caller_address()
+            .unwrap_or_revert_with(Error::ImmediateCallerAddressFail);
+        let token_address = self.address();
 
         let reward = self.reward_balance() * amount / self.staked_balance();
         let pay_out = amount + reward;
         let stakers_dict = StakedTokens::instance();
-        stakers_dict.withdraw_stake(&Key::from(caller_address), &amount);
+        stakers_dict.withdraw_stake(&Key::from(caller_address), &amount)?;
         self.pay_direct(caller_address, pay_out)?;
-        self.emit(CEP47Event::Withdraw { amount });
+        self.emit(StakingContractEvent::PaidOut {
+            staker_address,
+            token_address,
+            amount,
+            reward,
+        });
         Ok(amount)
     }
 
@@ -276,7 +247,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         reward_amount: U256,
         withdrawable_amount: U256,
     ) -> Result<U256, Error> {
-        // modifiers::before(self.staking_ends())?;
+        modifiers::before(self.withdraw_starts())?;
 
         if reward_amount <= U256::from(0u64) {
             return Err(Error::NegativeReward);
@@ -300,29 +271,45 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(reward_amount)
     }
 
+    fn staker_reward(&mut self, staker_address: Key) -> Result<U256, Error> {
+        let amount = self.amount_staked(staker_address)?;
+        let reward: U256 = if runtime::get_blocktime() < BlockTime::new(self.staking_ends()) {
+            let denom =
+                U256::from(self.withdraw_ends() - self.staking_ends()) * self.staking_total();
+
+            U256::from(u64::from(runtime::get_blocktime()) - self.staking_ends()) * amount / denom
+        } else {
+            self.reward_balance() * amount / self.staked_balance()
+        };
+
+        Ok(reward)
+    }
+
     fn pay_direct(&self, recipient: Address, amount: U256) -> Result<(), Error> {
         // modifiers::positive(amount)?;
-        // let (contract_hash, _, _) = self.contract_metadata();
-        let erc20_contract_hash = self.erc20_metadata();
+        let erc20_contract_package_hash = self.erc20_metadata();
 
         let args = runtime_args! {
             "recipient" => recipient,
             "amount" => amount,
-            // "amount" => U256::from(1u64),
         };
-        runtime::call_contract::<()>(erc20_contract_hash, "transfer", args);
+        runtime::call_versioned_contract::<()>(erc20_contract_package_hash, None, "transfer", args);
         Ok(())
     }
 
     fn pay_to(&self, allower: Address, recipient: Address, amount: U256) {
-        // let (contract_hash, _, _) = self.contract_metadata();
-        let erc20_contract_hash = self.erc20_metadata();
+        let erc20_contract_package_hash = self.erc20_metadata();
         let args = runtime_args! {
             "owner" => allower,
             "recipient" => recipient,
             "amount" => amount
         };
-        runtime::call_contract::<()>(erc20_contract_hash, "transfer_from", args);
+        runtime::call_versioned_contract::<()>(
+            erc20_contract_package_hash,
+            None,
+            "transfer_from",
+            args,
+        );
     }
 
     fn pay_me(&self, payer: Address, amount: U256) {
@@ -338,52 +325,15 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         )
     }
 
-    fn approve(&self, owner: Address, amount: U256) {
-        let (contract_hash, contract_package_hash, address) = self.contract_metadata();
-        let args = runtime_args! {
-            "spender" => crate::address::Address::ContractHash(contract_hash),
-            "amount" => amount
-        };
-        runtime::call_contract::<U256>(contract_hash, "approve", args);
-    }
-
-    fn emit(&mut self, event: CEP47Event) {
+    fn emit(&mut self, event: StakingContractEvent) {
         data::emit(&event);
     }
 
-    fn contract_metadata(&self) -> (ContractHash, ContractPackageHash, String) {
-        let lower_contracthash =
-            "contract-7d4d39dc4d3c017e3153c221279dd5343b7eada42b97e8a554b9bc0d7cf4f602"
-                .to_lowercase();
-        let contract_hash = ContractHash::from_formatted_str(&lower_contracthash).unwrap();
-
-        let lower_contractpackagehash =
-            "hashc7cc98beb3e4f0940c9d793c96fc78806b381c055c50d1729ffc1d014be89627".to_lowercase();
-        let contract_package_hash =
-            ContractPackageHash::from_formatted_str(&lower_contractpackagehash).unwrap();
-
-        let address_str =
-            "account-hash-8c07f894322d86705f9804d682a9ed6c9cd4be7a8fc6889d20b446e1d852fa8c";
-
-        // let account_hash = AccountHash::from_formatted_str(address_str).unwrap();
-
-        // let address = crate::address::Address::Account(account_hash);
-
-        let address =
-            "017fbbccf39a639a1a5f469e3fb210d9f355b532bd786f945409f0fc9a8c6313b1".to_string();
-        (contract_hash, contract_package_hash, address)
-    }
-
-    fn erc20_metadata(&self) -> ContractHash {
-        runtime::get_key("erc20_contract_hash")
+    fn erc20_metadata(&self) -> ContractPackageHash {
+        runtime::get_key("erc20_contract_package_hash")
             .unwrap_or_revert_with(Error::MissingContractPackageHash)
             .into_hash()
-            .map(|hash_address| ContractHash::new(hash_address))
+            .map(|hash_address| ContractPackageHash::new(hash_address))
             .unwrap_or_revert_with(Error::InvalidContractHash)
-    }
-
-    fn approve1(&mut self, spender: Key) -> Result<(), Error> {
-        let caller = self.get_caller();
-        Ok(())
     }
 }
