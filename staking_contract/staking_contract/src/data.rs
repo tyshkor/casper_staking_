@@ -1,5 +1,5 @@
-use crate::detail;
-use crate::event::CEP47Event;
+use crate::error::Error;
+use crate::event::StakingContractEvent;
 use alloc::{
     collections::BTreeMap,
     string::{String, ToString},
@@ -11,8 +11,8 @@ use casper_contract::{
 };
 use casper_types::{system::CallStackElement, ContractPackageHash, Key, URef, U256};
 use contract_utils::{get_key, key_to_str, set_key, Dict};
+use core::convert::TryInto;
 
-const STAKERS_DICT: &str = "stakers";
 const AMOUNT_STAKED_BY_ADDRESS_DICT: &str = "amount_staked_by_addresses_dict";
 const CONTRACT_PACKAGE_HASH: &str = "contract_package_hash";
 
@@ -59,11 +59,14 @@ impl StakedTokens {
             .set(&key_to_str(owner), new_amount);
     }
 
-    pub fn withdraw_stake(&self, owner: &Key, amount: &U256) {
-        let staked_amount = self.get_amount_staked_by_address(owner).unwrap();
-        let new_amount = staked_amount - amount;
+    pub fn withdraw_stake(&self, owner: &Key, amount: &U256) -> Result<(), Error> {
+        let staked_amount = self
+            .get_amount_staked_by_address(owner)
+            .ok_or(Error::NotAStaker)?;
+        let new_amount = staked_amount - *amount;
         self.addresses_staked_dict
             .set(&key_to_str(owner), new_amount);
+        Ok(())
     }
 }
 
@@ -184,35 +187,46 @@ pub fn contract_package_hash() -> ContractPackageHash {
     package_hash.unwrap_or_revert()
 }
 
-pub fn emit(event: &CEP47Event) {
+pub fn emit(event: &StakingContractEvent) {
     let mut events = Vec::new();
     let package = contract_package_hash();
     match event {
-        CEP47Event::Stake { amount } => {
+        StakingContractEvent::Stake {
+            token_address,
+            staker_address,
+            requested_amount,
+            staked_amount,
+        } => {
             let mut param = BTreeMap::new();
             param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
             param.insert("event_type", "stake".to_string());
+            param.insert("token_address", token_address.to_string());
             param.insert(
-                "staker",
-                Key::from(detail::get_immediate_caller_address().ok().unwrap())
-                    .to_formatted_string(),
+                "staker_address",
+                TryInto::<String>::try_into(*staker_address).unwrap(),
             );
-            param.insert("stake_amount", amount.to_string());
+            param.insert("requested_amount", requested_amount.to_string());
+            param.insert("staked_amount", staked_amount.to_string());
             events.push(param);
         }
-        CEP47Event::Withdraw { amount } => {
+        StakingContractEvent::PaidOut {
+            token_address,
+            staker_address,
+            amount,
+            reward,
+        } => {
             let mut param = BTreeMap::new();
             param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
-            param.insert("event_type", "withdraw".to_string());
-            // param.insert(
-            //     "staker",
-            //     Key::from(detail::get_immediate_caller_address().ok().unwrap())
-            //         .to_formatted_string(),
-            // );
-            param.insert("withdrawn_amount", amount.to_string());
+            param.insert("token_address", token_address.to_string());
+            param.insert(
+                "staker_address",
+                TryInto::<String>::try_into(*staker_address).unwrap(),
+            );
+            param.insert("amount", amount.to_string());
+            param.insert("reward", reward.to_string());
             events.push(param);
         }
-        CEP47Event::AddReward {
+        StakingContractEvent::AddReward {
             reward_amount,
             withdrawable_amount,
         } => {
@@ -221,6 +235,21 @@ pub fn emit(event: &CEP47Event) {
             param.insert("event_type", "add_reward".to_string());
             param.insert("reward_amount", reward_amount.to_string());
             param.insert("withdrawable_amount", withdrawable_amount.to_string());
+            events.push(param);
+        }
+        StakingContractEvent::Refunded {
+            token_address,
+            staker_address,
+            amount,
+        } => {
+            let mut param = BTreeMap::new();
+            param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
+            param.insert("token_address", token_address.to_string());
+            param.insert(
+                "staker_address",
+                TryInto::<String>::try_into(*staker_address).unwrap(),
+            );
+            param.insert("amount", amount.to_string());
             events.push(param);
         }
     };
