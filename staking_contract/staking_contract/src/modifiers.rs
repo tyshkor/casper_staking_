@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::error::Error;
 use casper_contract::contract_api::runtime;
 use casper_types::{BlockTime, U256};
 

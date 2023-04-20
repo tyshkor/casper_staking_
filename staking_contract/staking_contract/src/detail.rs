@@ -8,9 +8,10 @@ use casper_contract::{
 use casper_types::{bytesrepr::FromBytes, system::CallStackElement, ApiError, CLTyped, URef};
 
 use crate::address::Address;
-use crate::Error;
+use crate::error::Error;
 
 /// Gets [`URef`] under a name.
+#[allow(unused)]
 pub(crate) fn get_uref(name: &str) -> URef {
     let key = runtime::get_key(name)
         .ok_or(ApiError::MissingKey)
@@ -19,6 +20,7 @@ pub(crate) fn get_uref(name: &str) -> URef {
 }
 
 /// Reads value from a named key.
+#[allow(unused)]
 pub(crate) fn read_from<T>(name: &str) -> T
 where
     T: FromBytes + CLTyped,
@@ -66,6 +68,7 @@ pub(crate) fn get_immediate_caller_address() -> Result<Address, Error> {
 /// Gets the caller address which is stored on the top of the call stack.
 ///
 /// This is similar to what [`runtime::get_caller`] does but it also supports stored contracts.
+#[allow(unused)]
 pub(crate) fn get_caller_address() -> Result<Address, Error> {
     let call_stack = runtime::get_call_stack();
     let top_of_the_stack = call_stack
