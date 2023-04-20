@@ -4,18 +4,17 @@
 extern crate alloc;
 
 use alloc::vec;
-use alloc::{boxed::Box, collections::BTreeSet, format, string::String};
+use alloc::{collections::BTreeSet, format, string::String};
 use casper_contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
 };
 use casper_types::{
-    runtime_args, CLType, CLTyped, CLValue, ContractHash, ContractPackageHash, EntryPoint,
-    EntryPointAccess, EntryPointType, EntryPoints, Group, HashAddr, Key, Parameter, RuntimeArgs,
-    URef, U256,
+    runtime_args, CLTyped, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess,
+    EntryPointType, EntryPoints, Group, Key, Parameter, RuntimeArgs, URef, U256,
 };
-use staking_contract::staking_contract::CEP20STK;
 use contract_utils::{ContractContext, OnChainContractStorage};
+use staking_contract::staking_contract::CEP20STK;
 
 #[derive(Default)]
 struct Token(OnChainContractStorage);
@@ -52,9 +51,6 @@ impl Token {
 }
 
 #[no_mangle]
-pub extern "C" fn approve() {}
-
-#[no_mangle]
 pub extern "C" fn constructor() {
     let name = runtime::get_named_arg::<String>("name");
     let address = runtime::get_named_arg::<String>("address");
@@ -65,14 +61,17 @@ pub extern "C" fn constructor() {
     let staking_total: U256 = runtime::get_named_arg::<U256>("staking_total");
     let stacking_contract_package_hash =
         runtime::get_named_arg::<Key>("stacking_contract_package_hash");
-    let erc20_contract_hash = runtime::get_named_arg::<Key>("erc20_contract_hash");
+    let erc20_contract_package_hash = runtime::get_named_arg::<Key>("erc20_contract_package_hash");
 
     runtime::put_key(
         "stacking_contract_package_hash",
         stacking_contract_package_hash.into(),
     );
 
-    runtime::put_key("erc20_contract_hash", erc20_contract_hash.into());
+    runtime::put_key(
+        "erc20_contract_package_hash",
+        erc20_contract_package_hash.into(),
+    );
 
     Token::default().constructor(
         name,
@@ -130,14 +129,18 @@ pub extern "C" fn staking_total() {
 #[no_mangle]
 pub extern "C" fn amount_staked() {
     let staker = runtime::get_named_arg::<Key>("staker");
-    let ret = Token::default().amount_staked(staker);
+    let ret = Token::default().amount_staked(staker).unwrap_or_revert();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
 #[no_mangle]
 pub extern "C" fn stake() {
     let amount = runtime::get_named_arg::<U256>("amount");
-    let ret = Token::default().stake(amount).unwrap_or_revert();
+    let staking_contract_package_hash =
+        runtime::get_named_arg::<String>("staking_contract_package_hash");
+    let ret = Token::default()
+        .stake(amount, staking_contract_package_hash)
+        .unwrap_or_revert();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
@@ -159,6 +162,21 @@ pub extern "C" fn add_reward() {
 }
 
 #[no_mangle]
+pub extern "C" fn get_current_reward() {
+    let ret = Token::default().reward_balance();
+    runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
+}
+
+#[no_mangle]
+pub extern "C" fn staker_reward() {
+    let staker_address = runtime::get_named_arg::<Key>("staker_address");
+    let ret = Token::default()
+        .staker_reward(staker_address)
+        .unwrap_or_revert();
+    runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
+}
+
+#[no_mangle]
 pub extern "C" fn call() {
     // Read arguments for the constructor call.
     let name: String = runtime::get_named_arg("name");
@@ -168,8 +186,7 @@ pub extern "C" fn call() {
     let withdraw_starts: u64 = runtime::get_named_arg::<u64>("withdraw_starts");
     let withdraw_ends: u64 = runtime::get_named_arg::<u64>("withdraw_ends");
     let staking_total: U256 = runtime::get_named_arg::<U256>("staking_total");
-    let erc20_contract_hash = runtime::get_named_arg::<String>("erc20_contract_hash");
-    // let contract_name: String = runtime::get_named_arg("contract_name");
+    let erc20_contract_package_hash = runtime::get_named_arg::<Key>("erc20_contract_package_hash");
 
     /*
 
@@ -186,19 +203,44 @@ pub extern "C" fn call() {
       --session-arg "withdraw_starts:u64='0'" \
       --session-arg "withdraw_ends:u64='1755994649'" \
       --session-arg "staking_total:U256='500000'" \
-      --session-arg "erc20_contract_hash:string='2934370f0a53457987d4dba9d68d71e7ee45b676677fbc66653bd15ea58db60f'"
+      --session-arg "erc20_contract_hash:string='contract-2934370f0a53457987d4dba9d68d71e7ee45b676677fbc66653bd15ea58db60f'"
 
         */
+    // casper-client put-deploy \
+    // --chain-name casper-test \
+    // --node-address http://44.208.234.65:7777 \
+    // --secret-key ./staking_contract/keys/secret_key.pem \
+    // --session-path ./target/wasm32-unknown-unknown/release/staking_contract.wasm \
+    // --payment-amount 200000000000 \
+    // --session-arg "name:string='FerrumX'" \
+    // --session-arg "address:string='782fe4b0bb944e6b1fd2c5a1456a78f0e2193d47dee9b1af5711d6b6e6aaca60'" \
+    // --session-arg "staking_starts:u64='0'" \
+    // --session-arg "staking_ends:u64='1755994649'" \
+    // --session-arg "withdraw_starts:u64='0'" \
+    // --session-arg "withdraw_ends:u64='1755994649'" \
+    // --session-arg "staking_total:U256='500000'" \
+    // --session-arg "erc20_contract_hash:string='contract-4277c47789fd154c42471978b4bffec31760f56b07507334a219682cf475181f'"
+
     /*
           casper-client put-deploy \
           --chain-name casper-test \
-          --node-address http://159.65.118.250:7777 \
-          --secret-key cep47/keys/secret_key.pem \
-          --payment-amount 4000000000 \
-          --session-hash 6adb2902bf7c56116ead7ea7a2ffa269b8d4b117b632d2c44052f3c951dcaa0b \
+          --node-address http://44.208.234.65:7777 \
+          --secret-key staking_contract/keys/secret_key.pem \
+          --payment-amount 8000000000 \
+          --session-hash 5ec37b076f618f8e3205eda7ad1f8bade197b296716b7e0cbba11a7b7c613bc6 \
           --session-entry-point "stake" \
           --session-arg "amount:u256='5'"
     */
+
+    // casper-client put-deploy \
+    // --chain-name casper-test \
+    // --node-address http://44.208.234.65:7777 \
+    // --secret-key staking_contract/keys/secret_key.pem \
+    // --session-hash hash-4277c47789fd154c42471978b4bffec31760f56b07507334a219682cf475181f \
+    // --session-entry-point approve \
+    // --payment-amount 20000000000 \
+    // --session-arg "spender:key='hash-153fc70a20eeefb8b6a02b217b6a19cc8439092569750ced554bde9d3d8f9896'" \
+    // --session-arg "amount:u256='1000000000'"
 
     /*
           casper-client put-deploy \
@@ -247,11 +289,6 @@ pub extern "C" fn call() {
 
     let package_hash_key: Key = package_hash.into();
 
-    let erc20_contract_hash_key: Key =
-        ContractHash::from_formatted_str(erc20_contract_hash.as_str())
-            .unwrap()
-            .into();
-
     // Prepare constructor args
     let constructor_args = runtime_args! {
         "name" => name,
@@ -262,7 +299,7 @@ pub extern "C" fn call() {
         "withdraw_ends" => withdraw_ends,
         "staking_total" => staking_total,
         "stacking_contract_package_hash" => package_hash_key,
-        "erc20_contract_hash" => erc20_contract_hash_key,
+        "erc20_contract_package_hash" => erc20_contract_package_hash,
     };
 
     let constructor_access: URef =
@@ -297,6 +334,7 @@ fn get_entry_points() -> EntryPoints {
             Parameter::new("withdraw_starts", u64::cl_type()),
             Parameter::new("withdraw_ends", u64::cl_type()),
             Parameter::new("staking_total", U256::cl_type()),
+            Parameter::new("erc20_contract_package_hash", String::cl_type()),
         ],
         <()>::cl_type(),
         EntryPointAccess::Groups(vec![Group::new("constructor")]),
@@ -353,7 +391,17 @@ fn get_entry_points() -> EntryPoints {
     ));
     entry_points.add_entry_point(EntryPoint::new(
         "stake",
-        vec![Parameter::new("amount", Key::cl_type())],
+        vec![
+            Parameter::new("amount", U256::cl_type()),
+            Parameter::new("staking_contract_package_hash", String::cl_type()),
+        ],
+        <()>::cl_type(),
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    ));
+    entry_points.add_entry_point(EntryPoint::new(
+        "amount_staked",
+        vec![Parameter::new("staker", Key::cl_type())],
         <()>::cl_type(),
         EntryPointAccess::Public,
         EntryPointType::Contract,
@@ -368,29 +416,17 @@ fn get_entry_points() -> EntryPoints {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     ));
-    // entry_points.add_entry_point(EntryPoint::new(
-    //     "transfer",
-    //     vec![
-    //         Parameter::new("recipient", Key::cl_type()),
-    //     ],
-    //     <()>::cl_type(),
-    //     EntryPointAccess::Public,
-    //     EntryPointType::Contract,
-    // ));
-    // entry_points.add_entry_point(EntryPoint::new(
-    //     "transfer_from",
-    //     vec![
-    //         Parameter::new("sender", Key::cl_type()),
-    //         Parameter::new("recipient", Key::cl_type()),
-    //     ],
-    //     <()>::cl_type(),
-    //     EntryPointAccess::Public,
-    //     EntryPointType::Contract,
-    // ));
     entry_points.add_entry_point(EntryPoint::new(
-        "approve",
-        vec![Parameter::new("spender", Key::cl_type())],
-        <()>::cl_type(),
+        "get_current_reward",
+        vec![],
+        <U256>::cl_type(),
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    ));
+    entry_points.add_entry_point(EntryPoint::new(
+        "staker_reward",
+        vec![Parameter::new("staker_address", Key::cl_type())],
+        <U256>::cl_type(),
         EntryPointAccess::Public,
         EntryPointType::Contract,
     ));
