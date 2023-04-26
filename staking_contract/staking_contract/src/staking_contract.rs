@@ -12,6 +12,7 @@ use casper_types::{runtime_args, BlockTime, ContractPackageHash, Key, RuntimeArg
 use contract_utils::{ContractContext, ContractStorage};
 
 pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
+    #[allow(clippy::too_many_arguments)]
     fn init(
         &mut self,
         name: String,
@@ -313,6 +314,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     }
 
     fn pay_me(&self, payer: Address, amount: U256) {
+        #[allow(clippy::redundant_closure)]
         let stacking_contract_package_hash = runtime::get_key("stacking_contract_package_hash")
             .unwrap_or_revert_with(Error::MissingContractPackageHash)
             .into_hash()
@@ -330,6 +332,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     }
 
     fn erc20_metadata(&self) -> ContractPackageHash {
+        #[allow(clippy::redundant_closure)]
         runtime::get_key("erc20_contract_package_hash")
             .unwrap_or_revert_with(Error::MissingContractPackageHash)
             .into_hash()

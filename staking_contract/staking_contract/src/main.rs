@@ -1,5 +1,8 @@
-#![no_main]
 #![no_std]
+#![no_main]
+
+#[cfg(not(target_arch = "wasm32"))]
+compile_error!("target arch should be wasm32: compile with '--target wasm32-unknown-unknown'");
 
 extern crate alloc;
 
@@ -27,6 +30,7 @@ impl ContractContext<OnChainContractStorage> for Token {
 
 impl CEP20STK<OnChainContractStorage> for Token {}
 impl Token {
+    #[allow(clippy::too_many_arguments)]
     fn constructor(
         &mut self,
         name: String,
@@ -63,11 +67,13 @@ pub extern "C" fn constructor() {
         runtime::get_named_arg::<Key>("stacking_contract_package_hash");
     let erc20_contract_package_hash = runtime::get_named_arg::<Key>("erc20_contract_package_hash");
 
+    #[allow(clippy::useless_conversion)]
     runtime::put_key(
         "stacking_contract_package_hash",
         stacking_contract_package_hash.into(),
     );
 
+    #[allow(clippy::useless_conversion)]
     runtime::put_key(
         "erc20_contract_package_hash",
         erc20_contract_package_hash.into(),
