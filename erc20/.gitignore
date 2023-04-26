@@ -34,4 +34,6 @@ target/
 .history
 .ionide
 
+keys
+
 # End of https://www.toptal.com/developers/gitignore/api/rust,visualstudiocode

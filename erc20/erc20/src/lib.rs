@@ -24,9 +24,7 @@ pub mod entry_points;
 mod error;
 mod total_supply;
 
-use core::convert::TryInto;
-
-use alloc::{string::{String, ToString}, format};
+use alloc::string::{String, ToString};
 
 use once_cell::unsync::OnceCell;
 
@@ -86,6 +84,7 @@ impl ERC20 {
         balances::write_balance_to(self.balances_uref(), owner, amount)
     }
 
+    #[allow(unused)]
     fn allowances_uref(&self) -> URef {
         *self
             .allowances_uref
@@ -302,7 +301,7 @@ impl ERC20 {
         named_keys.insert(TOTAL_SUPPLY_KEY_NAME.to_string(), total_supply_key);
 
         let (contract_hash, _version) =
-            storage::new_locked_contract(entry_points, Some(named_keys), None, None);
+            storage::new_locked_contract(entry_points, Some(named_keys), Some(String::from("erc20-contract_package_hash")), None);
 
         // Hash of the installed contract will be reachable through named keys.
         runtime::put_key(contract_key_name, Key::from(contract_hash));
