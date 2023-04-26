@@ -18,13 +18,13 @@ copy-wasm-file-to-test:
 test: build-contract copy-wasm-file-to-test test-only
 
 clippy:
-	cargo clippy --all-targets --all -- -D warnings
+	cd staking_contract && cargo clippy --all-targets --all -- -D warnings
 
 check-lint: clippy
-	cargo fmt --all -- --check
+	cd staking_contract && cargo fmt --all -- --check
 
 lint: clippy
-	cargo fmt --all
+	cd staking_contract && cargo fmt --all
 
 clean:
 	cargo clean
