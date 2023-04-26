@@ -24,11 +24,14 @@ jobs:
       - name: Install dependencies
         run: sudo apt update && sudo apt install -y build-essential wabt
 
+      - name: Setup
+        run:  cd staking_contract ; make prepare
+
       - name: Run clippy and fmt
-        run:  rustup component add clippy --toolchain nightly-2023-01-16-x86_64-unknown-linux-gnu; rustup component add rustfmt --toolchain nightly-2023-01-16-x86_64-unknown-linux-gnu ; make check-lint
+        run:  cd staking_contract ; rustup component add clippy --toolchain nightly-2023-01-16-x86_64-unknown-linux-gnu; rustup component add rustfmt --toolchain nightly-2023-01-16-x86_64-unknown-linux-gnu ; make check-lint
 
       - name: Build
-        run: rustup target add wasm32-unknown-unknown ; make build-contract
+        run: cd staking_contract ; rustup target add wasm32-unknown-unknown ; make build-contract
 
       - name: Test
-        run: rustup target add wasm32-unknown-unknown ; make build-contract ; make test
+        run: cd staking_contract ; rustup target add wasm32-unknown-unknown ; make build-contract ; make test
