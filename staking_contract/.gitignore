@@ -1,4 +1,5 @@
 target
 staking_contract_tests/wasm/*.wasm
+staking_contract_tests/wasm/erc20.wasm
 node_modules
 commands*
