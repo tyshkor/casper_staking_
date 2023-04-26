@@ -323,7 +323,7 @@ pub extern "C" fn call() {
 
     runtime::put_key("staking_contract_hash", contract_hash.into());
     runtime::put_key(
-        &format!("{}_contract_hash_wrapped", contract_hash),
+        &format!("{contract_hash}_contract_hash_wrapped"),
         storage::new_uref(contract_hash).into(),
     );
 }
