@@ -54,7 +54,6 @@ const WITHDRAWABLE_AMOUNT: &str = "withdrawable_amount";
 const REWARD_AMOUNT: &str = "reward_amount";
 const CONTRACT_PACKAGE_HASH: &str = "contract_package_hash";
 const STAKING_CONTRACT_HASH: &str = "staking_contract_hash";
-const STAKING_CONTRACT_PACKAGE_HASH: &str = "staking_contract_package_hash";
 
 const CONSTRUCTOR_GROUP: &str = "constructor";
 
@@ -205,15 +204,12 @@ pub extern "C" fn amount_staked() {
 
 // The `stake` function takes the following arguments:
 // - amount: The number of tokens to stake.
-// - staking_contract_package_hash: The hash of the staking contract package.
 // The function stakes the specified number of tokens in the staking contract.
 #[no_mangle]
 pub extern "C" fn stake() {
     let amount = runtime::get_named_arg::<U256>(AMOUNT);
-    let staking_contract_package_hash =
-        runtime::get_named_arg::<String>(STAKING_CONTRACT_PACKAGE_HASH);
     let ret = Staking::default()
-        .stake(amount, staking_contract_package_hash)
+        .stake(amount)
         .unwrap_or_revert();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
@@ -393,7 +389,6 @@ fn get_entry_points() -> EntryPoints {
         ENTRY_POINT_STAKE,
         vec![
             Parameter::new(AMOUNT, U256::cl_type()),
-            Parameter::new(STAKING_CONTRACT_PACKAGE_HASH, String::cl_type()),
         ],
         <()>::cl_type(),
         EntryPointAccess::Public,
