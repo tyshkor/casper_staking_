@@ -263,7 +263,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         // mutate stakers_dict accordingly to the situation
         stakers_dict.withdraw_stake(&Key::from(caller_address), &amount)?;
         self.pay_direct(caller_address, pay_out)?;
-         // emit `PaidOut` event
+        // emit `PaidOut` event
         self.emit(StakingContractEvent::PaidOut {
             staker_address,
             token_address,
