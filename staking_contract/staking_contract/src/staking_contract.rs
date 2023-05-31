@@ -151,10 +151,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     }
 
     /// Stakes the given amount of tokens.
-    fn stake(
-        &mut self,
-        amount: U256,
-    ) -> Result<U256, Error> {
+    fn stake(&mut self, amount: U256) -> Result<U256, Error> {
         modifiers::positive(amount)?;
         modifiers::after(self.staking_starts())?;
         modifiers::before(self.staking_ends())?;
@@ -182,10 +179,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             return Err(Error::NotRequiredStake);
         }
 
-        self.pay_me(
-            staker_address,
-            remaining_token,
-        );
+        self.pay_me(staker_address, remaining_token);
 
         self.emit(StakingContractEvent::Stake {
             token_address,
@@ -245,7 +239,8 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             u64::from(runtime::get_blocktime())
                 .checked_sub(self.staking_ends())
                 .ok_or(Error::CheckedSub)?,
-        ) * self.early_withdraw_reward() * amount
+        ) * self.early_withdraw_reward()
+            * amount
             / denom;
 
         let pay_out = amount + reward;

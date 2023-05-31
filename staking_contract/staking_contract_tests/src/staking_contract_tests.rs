@@ -11,9 +11,9 @@ use casper_types::{
     account::AccountHash, bytesrepr::ToBytes, runtime_args, ContractHash, ContractPackageHash, Key,
     PublicKey, RuntimeArgs, SecretKey, BLAKE2B_DIGEST_LENGTH, U256,
 };
-use std::time::SystemTime;
-use std::convert::TryInto;
 use once_cell::sync::Lazy;
+use std::convert::TryInto;
+use std::time::SystemTime;
 
 const ADDRESS: &str = "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d";
 

@@ -208,9 +208,7 @@ pub extern "C" fn amount_staked() {
 #[no_mangle]
 pub extern "C" fn stake() {
     let amount = runtime::get_named_arg::<U256>(AMOUNT);
-    let ret = Staking::default()
-        .stake(amount)
-        .unwrap_or_revert();
+    let ret = Staking::default().stake(amount).unwrap_or_revert();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
@@ -387,9 +385,7 @@ fn get_entry_points() -> EntryPoints {
     ));
     entry_points.add_entry_point(EntryPoint::new(
         ENTRY_POINT_STAKE,
-        vec![
-            Parameter::new(AMOUNT, U256::cl_type()),
-        ],
+        vec![Parameter::new(AMOUNT, U256::cl_type())],
         <()>::cl_type(),
         EntryPointAccess::Public,
         EntryPointType::Contract,
