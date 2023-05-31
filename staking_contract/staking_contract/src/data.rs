@@ -153,7 +153,7 @@ pub fn withdraw_ends() -> u64 {
 
 /// Sets the withdrawal end time
 pub fn set_withdraw_ends(withdraw_ends: u64) {
-    set_key(WITHDRAW_STARTS, withdraw_ends);
+    set_key(WITHDRAW_ENDS, withdraw_ends);
 }
 
 /// Retrieves the total staking amount
@@ -164,16 +164,6 @@ pub fn staking_total() -> U256 {
 /// Sets the total staking amount
 pub fn set_staking_total(staking_total: U256) {
     set_key(STAKING_TOTAL, staking_total);
-}
-
-/// Retrieves the stake balance
-pub fn stake_balance() -> u64 {
-    get_key(STAKED_BALANCE).unwrap_or_default()
-}
-
-/// Sets the stake balance
-pub fn set_stake_balance(stake_balance: u64) {
-    set_key(STAKED_BALANCE, stake_balance);
 }
 
 /// Retrieves the total reward amount
