@@ -45,8 +45,8 @@ pub enum Error {
     WithdrawStartsStakingEnds = 20,
     WithdrawEndsWithdrawStarts = 21,
     StakingStartsNow = 22,
+    /// Subtraction underflow
     CheckedSub = 23,
-    WrongERC20Token = 24,
 }
 
 impl From<Error> for ApiError {
