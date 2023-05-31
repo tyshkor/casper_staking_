@@ -11,7 +11,11 @@ use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::{runtime_args, BlockTime, ContractPackageHash, Key, RuntimeArgs, U256};
 use contract_utils::{ContractContext, ContractStorage};
 
+// This code defines a trait for the staking contract.
+
+#[allow(clippy::too_many_arguments)]
 pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
+    // Initializes the staking contract.
     #[allow(clippy::too_many_arguments)]
     fn init(
         &mut self,
@@ -30,49 +34,61 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::set_withdraw_starts(withdraw_starts);
         data::set_withdraw_ends(withdraw_ends);
         data::set_staking_total(staking_total);
+        // Initialize the staked tokens map.
         StakedTokens::init();
     }
 
+    // Returns the contract name.
     fn name(&self) -> String {
         data::name()
     }
 
+    // Returns the contract address.
     fn address(&self) -> String {
         data::address()
     }
 
+    // Returns the staking start time.
     fn staking_starts(&self) -> u64 {
         data::staking_starts()
     }
 
+    // Returns the staking end time.
     fn staking_ends(&self) -> u64 {
         data::staking_ends()
     }
 
+    // Returns the withdraw start time.
     fn withdraw_starts(&self) -> u64 {
         data::withdraw_starts()
     }
 
+    // Returns the withdraw end time.
     fn withdraw_ends(&self) -> u64 {
         data::withdraw_ends()
     }
 
+    // Returns the total staking amount.
     fn staking_total(&self) -> U256 {
         data::staking_total()
     }
 
+    // Sets the total staking amount.
     fn set_staking_total(&self, staking_total: U256) {
         data::set_staking_total(staking_total)
     }
 
+    // Returns the reward balance.
     fn reward_balance(&self) -> U256 {
         data::reward_balance()
     }
 
+    // Sets the staked balance.
     fn set_reward_balance(&self, reward_balance: U256) {
         data::set_reward_balance(reward_balance)
     }
 
+    // Returns the staked balance.
     fn staked_balance(&self) -> U256 {
         data::staked_balance()
     }
@@ -81,18 +97,22 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::set_staked_balance(staked_balance)
     }
 
+    // Returns the total reward.
     fn total_reward(&self) -> U256 {
         data::total_reward()
     }
 
+    // Sets the total reward.
     fn set_total_reward(&self, total_reward: U256) {
         data::set_total_reward(total_reward)
     }
 
+    // Returns the early withdraw reward.
     fn early_withdraw_reward(&self) -> U256 {
         data::early_withdraw_reward()
     }
 
+    // Sets the early withdraw reward.
     fn set_early_withdraw_reward(&self, early_withdraw_reward: U256) {
         data::set_early_withdraw_reward(early_withdraw_reward)
     }
@@ -105,12 +125,14 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::set_staked_total(staked_total)
     }
 
+    /// Returns the amount of tokens that have been staked by the given staker.
     fn amount_staked(&self, staker: Key) -> Result<U256, Error> {
         StakedTokens::instance()
             .get_amount_staked_by_address(&staker)
             .ok_or(Error::NotAStaker)
     }
 
+    /// Stakes the given amount of tokens.
     fn stake(
         &mut self,
         amount: U256,
@@ -172,6 +194,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(amount)
     }
 
+    /// Withdraws the given amount of tokens.
     fn withdraw(&mut self, amount: U256) -> Result<U256, Error> {
         modifiers::positive(amount)?;
         modifiers::after(self.staking_starts())?;
@@ -187,6 +210,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             return Err(Error::NotRequiredStake);
         }
 
+        // different flows depending on when staking ends
         if runtime::get_blocktime() < BlockTime::new(self.staking_ends()) {
             self.withdraw_early(amount, caller_address)
         } else {
@@ -194,6 +218,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         }
     }
 
+    /// Withdraws the given amount of tokens early.
     fn withdraw_early(&mut self, amount: U256, caller_address: Address) -> Result<U256, Error> {
         let staker_address = detail::get_immediate_caller_address()
             .unwrap_or_revert_with(Error::ImmediateCallerAddressFail);
@@ -210,7 +235,9 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         self.set_staked_balance(self.staked_balance() - amount);
         let stakers_dict = StakedTokens::instance();
         stakers_dict.withdraw_stake(&Key::from(caller_address), &amount)?;
+        // pay the tokens
         self.pay_direct(caller_address, pay_out)?;
+        // emit `PaidOut` event
         self.emit(StakingContractEvent::PaidOut {
             staker_address,
             token_address,
@@ -220,6 +247,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(amount)
     }
 
+    /// Withdraws the given amount of tokens after the staking period has ended.
     fn withdraw_after_close(
         &mut self,
         amount: U256,
@@ -232,8 +260,10 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         let reward = self.reward_balance() * amount / self.staked_balance();
         let pay_out = amount + reward;
         let stakers_dict = StakedTokens::instance();
+        // mutate stakers_dict accordingly to the situation
         stakers_dict.withdraw_stake(&Key::from(caller_address), &amount)?;
         self.pay_direct(caller_address, pay_out)?;
+        // emit `PaidOut` event
         self.emit(StakingContractEvent::PaidOut {
             staker_address,
             token_address,
@@ -243,6 +273,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(amount)
     }
 
+    /// Adds the given amount of reward tokens.
     fn add_reward(
         &mut self,
         reward_amount: U256,
@@ -250,6 +281,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     ) -> Result<U256, Error> {
         modifiers::before(self.withdraw_starts())?;
 
+        // reward_amount has to be positive
         if reward_amount <= U256::from(0u64) {
             return Err(Error::NegativeReward);
         }
@@ -263,6 +295,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         }
         self.pay_me(detail::get_immediate_caller_address()?, reward_amount);
 
+        // calculate new total reward
         let current_total_reward = self.total_reward() + reward_amount;
 
         self.set_total_reward(current_total_reward);
@@ -272,6 +305,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(reward_amount)
     }
 
+    /// Returns the reward that the given staker is entitled to.
     fn staker_reward(&mut self, staker_address: Key) -> Result<U256, Error> {
         let amount = self.amount_staked(staker_address)?;
         let reward: U256 = if runtime::get_blocktime() < BlockTime::new(self.staking_ends()) {
@@ -286,6 +320,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(reward)
     }
 
+    /// Pays the given amount of tokens directly to the recipient.
     fn pay_direct(&self, recipient: Address, amount: U256) -> Result<(), Error> {
         // modifiers::positive(amount)?;
         let erc20_contract_package_hash = self.erc20_metadata();
@@ -298,6 +333,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         Ok(())
     }
 
+    /// Pays the given amount of tokens to the recipient, transferring them from the given allower.
     fn pay_to(&self, allower: Address, recipient: Address, amount: U256) {
         let erc20_contract_package_hash = self.erc20_metadata();
         let args = runtime_args! {
@@ -313,6 +349,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         );
     }
 
+    /// Pays the given amount of tokens to the staking contract, transferring them from the given allower.
     fn pay_me(&self, payer: Address, amount: U256) {
         #[allow(clippy::redundant_closure)]
         let stacking_contract_package_hash = runtime::get_key("stacking_contract_package_hash")
@@ -327,10 +364,12 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         )
     }
 
+    /// Emits the events
     fn emit(&mut self, event: StakingContractEvent) {
         data::emit(&event);
     }
 
+    /// Returns `ContractPackageHash` of the ERC-20 type token that is staked
     fn erc20_metadata(&self) -> ContractPackageHash {
         #[allow(clippy::redundant_closure)]
         runtime::get_key("erc20_contract_package_hash")
