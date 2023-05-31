@@ -110,6 +110,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::staked_balance()
     }
 
+    // Sets the staked balance.
     fn set_staked_balance(&self, staked_balance: U256) {
         data::set_staked_balance(staked_balance)
     }
@@ -153,7 +154,6 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     fn stake(
         &mut self,
         amount: U256,
-        staking_contract_package_hash_string: String,
     ) -> Result<U256, Error> {
         modifiers::positive(amount)?;
         modifiers::after(self.staking_starts())?;
@@ -182,17 +182,8 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             return Err(Error::NotRequiredStake);
         }
 
-        let staking_contract_package_hash =
-            ContractPackageHash::from_formatted_str(staking_contract_package_hash_string.as_str())
-                .map_err(|_| Error::NotStakingContractPackageHash)?;
-
-        if staking_contract_package_hash != self.erc20_contract_package_hash() {
-            return Err(Error::WrongERC20Token)
-        }
-
-        self.pay_to(
+        self.pay_me(
             staker_address,
-            crate::address::Address::ContractPackage(staking_contract_package_hash),
             remaining_token,
         );
 
@@ -205,8 +196,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
 
         if remaining_token < amount {
             let refund = amount - remaining_token;
-            self.pay_direct(staker_address, refund)
-                .unwrap_or_revert_with(Error::NegativeAmount);
+            self.pay_to(staker_address, staker_address, refund);
         }
 
         self.set_staking_total(self.staking_total() + remaining_token);
@@ -218,7 +208,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
     /// Withdraws the given amount of tokens.
     fn withdraw(&mut self, amount: U256) -> Result<U256, Error> {
         modifiers::positive(amount)?;
-        modifiers::after(self.staking_starts())?;
+        modifiers::after(self.withdraw_starts())?;
 
         let stakers_dict = StakedTokens::instance();
         let caller_address = detail::get_immediate_caller_address()?;
@@ -350,7 +340,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
                 self.withdraw_ends()
                     .checked_sub(self.staking_ends())
                     .ok_or(Error::CheckedSub)?,
-            ) * self.staking_total();
+            ) * self.staked_total();
 
             U256::from(
                 u64::from(runtime::get_blocktime())
@@ -367,7 +357,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
 
     /// Pays the given amount of tokens directly to the recipient.
     fn pay_direct(&self, recipient: Address, amount: U256) -> Result<(), Error> {
-        // modifiers::positive(amount)?;
+        modifiers::positive(amount)?;
         let erc20_contract_package_hash = self.erc20_contract_package_hash();
 
         let args = runtime_args! {
