@@ -569,8 +569,8 @@ fn test_approve_and_stake_and_staker_reward() {
         "address" => "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d".to_string(),
         "staking_starts" => 0u64,
         "staking_ends" => 1781708875776u64,
-        "withdraw_starts" => 0u64,
-        "withdraw_ends" => 1781708875776u64,
+        "withdraw_starts" => 1781708875776u64,
+        "withdraw_ends" => 1781708875786u64,
         "staking_total" => U256::from(500000i64),
         "erc20_contract_package_hash" => Key::from(erc20_contract_package_hash),
     };
@@ -662,6 +662,7 @@ fn test_approve_and_stake_and_staker_reward() {
         "staker_reward",
         staker_reward_args,
     )
+    .with_block_time(1781708875776u64)
     .build();
 
     builder
@@ -1027,10 +1028,10 @@ fn test_approve_and_stake_and_withdraw() {
         "name" => "FerrumX".to_string(),
         "address" => "9e7283533626d0c7d43fa9ca745af20d8dac7fc3bfe03cdfe50d523a2a0f498d".to_string(),
         "staking_starts" => 0u64,
-        "staking_ends" => 1681708875776u64,
-        "withdraw_starts" => 1681708875776u64,
-        "withdraw_ends" => 1781708875776u64,
-        "staking_total" => U256::from(500000i64),
+        "staking_ends" =>    1781708875779u64,
+        "withdraw_starts" => 1781708875779u64,
+        "withdraw_ends" =>   1781708875779u64,
+        "staking_total" => U256::from(50000i64),
         "erc20_contract_package_hash" => Key::from(erc20_contract_package_hash),
     };
 
@@ -1103,6 +1104,7 @@ fn test_approve_and_stake_and_withdraw() {
         "withdraw",
         withdraw_args,
     )
+    .with_block_time(1781708875779u64)
     .build();
 
     builder.exec(withdraw_request).expect_success().commit();
