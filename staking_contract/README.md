@@ -107,6 +107,10 @@ make test
 
 ### Installing and Interacting with the Contract using the Rust Casper Client
 
+#### Prerequisites
+
+Please, ensure, that your private key is called `secret_key.pem` and is situated in `staking_contract/keys` subdirectory, otherwise you won't be able to run the commands.
+
 
 ##### Example deploy
 
@@ -116,8 +120,8 @@ The following is an example of deploying the installation of the contract via th
 casper-client put-deploy \
     --chain-name casper-test \
     --node-address http://44.208.234.65:7777 \
-    --secret-key ./contract/keys/secret_key.pem \
-    --session-path ./contract/target/wasm32-unknown-unknown/release/bridge_pool.wasm \
+    --secret-key ./staking_contract/keys/secret_key.pem \
+    --session-path ./staking_contract/target/wasm32-unknown-unknown/release/staking_contract.wasm \
     --payment-amount 220000000000
 ```
 
