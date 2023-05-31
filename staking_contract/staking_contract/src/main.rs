@@ -4,10 +4,13 @@
 #[cfg(not(target_arch = "wasm32"))]
 compile_error!("target arch should be wasm32: compile with '--target wasm32-unknown-unknown'");
 
+// External dependencies
 extern crate alloc;
 
 use alloc::vec;
 use alloc::{collections::BTreeSet, format, string::String};
+
+// Contract API dependencies
 use casper_contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
@@ -16,9 +19,12 @@ use casper_types::{
     runtime_args, CLTyped, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess,
     EntryPointType, EntryPoints, Group, Key, Parameter, RuntimeArgs, URef, U256,
 };
+
+// Custom dependencies
 use contract_utils::{ContractContext, OnChainContractStorage};
 use staking_contract::staking_contract::CEP20STK;
 
+/// Struct representing the token contract.
 #[derive(Default)]
 struct Token(OnChainContractStorage);
 
@@ -29,7 +35,9 @@ impl ContractContext<OnChainContractStorage> for Token {
 }
 
 impl CEP20STK<OnChainContractStorage> for Token {}
+
 impl Token {
+    /// Constructor for the token contract.
     #[allow(clippy::too_many_arguments)]
     fn constructor(
         &mut self,
@@ -54,8 +62,17 @@ impl Token {
     }
 }
 
+// The constructor function takes the following arguments:
+// - name: The name of the staking contract.
+// - address: The address of the staking contract.
+// - staking_starts: The start date of the staking period.
+// - staking_ends: The end date of the staking period.
+// - withdraw_starts: The start date of the withdrawal period.
+// - withdraw_ends: The end date of the withdrawal period.
+// - staking_total: The total number of tokens that can be staked.
 #[no_mangle]
 pub extern "C" fn constructor() {
+    // Read arguments for the constructor call.
     let name = runtime::get_named_arg::<String>("name");
     let address = runtime::get_named_arg::<String>("address");
     let staking_starts: u64 = runtime::get_named_arg::<u64>("staking_starts");
@@ -67,6 +84,7 @@ pub extern "C" fn constructor() {
         runtime::get_named_arg::<Key>("stacking_contract_package_hash");
     let erc20_contract_package_hash = runtime::get_named_arg::<Key>("erc20_contract_package_hash");
 
+    // Store the stacking_contract_package_hash and erc20_contract_package_hash as keys
     #[allow(clippy::useless_conversion)]
     runtime::put_key(
         "stacking_contract_package_hash",
@@ -79,6 +97,7 @@ pub extern "C" fn constructor() {
         erc20_contract_package_hash.into(),
     );
 
+    // Initialize the token contract using the constructor arguments
     Token::default().constructor(
         name,
         address,
@@ -90,48 +109,58 @@ pub extern "C" fn constructor() {
     );
 }
 
+// The `name` function returns the name of the staking contract.
 #[no_mangle]
 pub extern "C" fn name() {
     let ret = Token::default().name();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `address` function returns the address of the staking contract.
 #[no_mangle]
 pub extern "C" fn address() {
     let ret = Token::default().address();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `staking_starts` function returns the start date of the staking period.
 #[no_mangle]
 pub extern "C" fn staking_starts() {
     let ret = Token::default().staking_starts();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `staking_ends` function returns the end date of the staking period.
 #[no_mangle]
 pub extern "C" fn staking_ends() {
     let ret = Token::default().staking_starts();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `withdraw_starts` function returns the start date of the withdrawal period.
 #[no_mangle]
 pub extern "C" fn withdraw_starts() {
     let ret = Token::default().withdraw_starts();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `withdraw_ends` function returns the end date of the withdrawal period.
 #[no_mangle]
 pub extern "C" fn withdraw_ends() {
     let ret = Token::default().withdraw_ends();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `staking_total` function returns the total number of tokens that can be staked.
 #[no_mangle]
 pub extern "C" fn staking_total() {
     let ret = Token::default().staking_total();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `amount_staked` function takes the following argument:
+// - staker: The address of the staker.
+// The function returns the number of tokens that the staker has staked.
 #[no_mangle]
 pub extern "C" fn amount_staked() {
     let staker = runtime::get_named_arg::<Key>("staker");
@@ -139,6 +168,10 @@ pub extern "C" fn amount_staked() {
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `stake` function takes the following arguments:
+// - amount: The number of tokens to stake.
+// - staking_contract_package_hash: The hash of the staking contract package.
+// The function stakes the specified number of tokens in the staking contract.
 #[no_mangle]
 pub extern "C" fn stake() {
     let amount = runtime::get_named_arg::<U256>("amount");
@@ -150,6 +183,9 @@ pub extern "C" fn stake() {
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `withdraw` function takes the following arguments:
+// - amount: The number of tokens to withdraw.
+// The function withdraws the specified number of tokens from the staking contract.
 #[no_mangle]
 pub extern "C" fn withdraw() {
     let amount = runtime::get_named_arg::<U256>("amount");
@@ -157,6 +193,10 @@ pub extern "C" fn withdraw() {
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `add_reward` function takes the following arguments:
+// - reward_amount: The amount of reward to add.
+// - withdrawable_amount: The amount of reward that is now withdrawable.
+// The function adds the specified amount of reward to the staking contract and updates the withdrawable amount.
 #[no_mangle]
 pub extern "C" fn add_reward() {
     let reward_amount = runtime::get_named_arg::<U256>("reward_amount");
@@ -167,12 +207,16 @@ pub extern "C" fn add_reward() {
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `get_current_reward` function returns the current reward amount.
 #[no_mangle]
 pub extern "C" fn get_current_reward() {
     let ret = Token::default().reward_balance();
     runtime::ret(CLValue::from_t(ret).unwrap_or_revert());
 }
 
+// The `staker_reward` function takes the following argument:
+// - staker_address: The address of the staker.
+// The function returns the reward amount that the staker has earned.
 #[no_mangle]
 pub extern "C" fn staker_reward() {
     let staker_address = runtime::get_named_arg::<Key>("staker_address");
