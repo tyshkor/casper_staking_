@@ -19,7 +19,13 @@ To check for successful installation, one needs to run this command:
 rustup --version.
 ```
 
-Secondly, you need to install CMake:
+Secondly, you'll need to install `wabt` tooling:
+
+```bash
+sudo apt install wabt
+```
+
+Thirdly, you need to install CMake:
 
 ```bash
 sudo apt-get -y install cmake
