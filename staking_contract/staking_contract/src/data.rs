@@ -32,6 +32,21 @@ pub const EARLY_WITHDRAW_REWARD: &str = "early_withdraw_reward";
 pub const STAKED_TOTAL: &str = "staked_total";
 pub const REWARD_BALANCE: &str = "reward_balance";
 pub const STAKED_BALANCE: &str = "staked_balance";
+const AMOUNT: &str = "amount";
+const REWARD: &str = "reward";
+const TOKEN_ADDRESS: &str = "token_address";
+const STAKER_ADDRESS: &str = "staker_address";
+const REWARD_AMOUNT: &str = "reward_amount";
+const STAKED_AMOUNT: &str = "staked_amount";
+const REQUESTED_AMOUNT: &str = "requested_amount";
+const WITHDRAWABLE_AMOUNT: &str = "withdrawable_amount";
+
+const EVENT_TYPE: &str = "event_type";
+
+const STAKE: &str = "stake";
+const PAID_OUT: &str = "paid_out";
+const ADD_REWARD: &str = "add_reward";
+const REFUNDED: &str = "refunded";
 
 // Structure for managing staked tokens
 pub struct StakedTokens {
@@ -72,7 +87,9 @@ impl StakedTokens {
         let staked_amount = self
             .get_amount_staked_by_address(owner)
             .ok_or(Error::NotAStaker)?;
-        let new_amount = staked_amount - *amount;
+        let new_amount = staked_amount
+            .checked_sub(*amount)
+            .ok_or(Error::CheckedSub)?;
         self.addresses_staked_dict
             .set(&key_to_str(owner), new_amount);
         Ok(())
@@ -136,7 +153,7 @@ pub fn withdraw_ends() -> u64 {
 
 /// Sets the withdrawal end time
 pub fn set_withdraw_ends(withdraw_ends: u64) {
-    set_key(WITHDRAW_STARTS, withdraw_ends);
+    set_key(WITHDRAW_ENDS, withdraw_ends);
 }
 
 /// Retrieves the total staking amount
@@ -147,16 +164,6 @@ pub fn staking_total() -> U256 {
 /// Sets the total staking amount
 pub fn set_staking_total(staking_total: U256) {
     set_key(STAKING_TOTAL, staking_total);
-}
-
-/// Retrieves the stake balance
-pub fn stake_balance() -> u64 {
-    get_key(STAKED_BALANCE).unwrap_or_default()
-}
-
-/// Sets the stake balance
-pub fn set_stake_balance(stake_balance: u64) {
-    set_key(STAKED_BALANCE, stake_balance);
 }
 
 /// Retrieves the total reward amount
@@ -236,14 +243,14 @@ pub fn emit(event: &StakingContractEvent) {
         } => {
             let mut param = BTreeMap::new();
             param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
-            param.insert("event_type", "stake".to_string());
-            param.insert("token_address", token_address.to_string());
+            param.insert(EVENT_TYPE, STAKE.to_string());
+            param.insert(TOKEN_ADDRESS, token_address.to_string());
             param.insert(
-                "staker_address",
+                STAKER_ADDRESS,
                 TryInto::<String>::try_into(*staker_address).unwrap(),
             );
-            param.insert("requested_amount", requested_amount.to_string());
-            param.insert("staked_amount", staked_amount.to_string());
+            param.insert(REQUESTED_AMOUNT, requested_amount.to_string());
+            param.insert(STAKED_AMOUNT, staked_amount.to_string());
             events.push(param);
         }
         StakingContractEvent::PaidOut {
@@ -254,13 +261,14 @@ pub fn emit(event: &StakingContractEvent) {
         } => {
             let mut param = BTreeMap::new();
             param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
-            param.insert("token_address", token_address.to_string());
+            param.insert(EVENT_TYPE, PAID_OUT.to_string());
+            param.insert(TOKEN_ADDRESS, token_address.to_string());
             param.insert(
-                "staker_address",
+                STAKER_ADDRESS,
                 TryInto::<String>::try_into(*staker_address).unwrap(),
             );
-            param.insert("amount", amount.to_string());
-            param.insert("reward", reward.to_string());
+            param.insert(AMOUNT, amount.to_string());
+            param.insert(REWARD, reward.to_string());
             events.push(param);
         }
         StakingContractEvent::AddReward {
@@ -269,9 +277,9 @@ pub fn emit(event: &StakingContractEvent) {
         } => {
             let mut param = BTreeMap::new();
             param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
-            param.insert("event_type", "add_reward".to_string());
-            param.insert("reward_amount", reward_amount.to_string());
-            param.insert("withdrawable_amount", withdrawable_amount.to_string());
+            param.insert(EVENT_TYPE, ADD_REWARD.to_string());
+            param.insert(REWARD_AMOUNT, reward_amount.to_string());
+            param.insert(WITHDRAWABLE_AMOUNT, withdrawable_amount.to_string());
             events.push(param);
         }
         StakingContractEvent::Refunded {
@@ -281,12 +289,13 @@ pub fn emit(event: &StakingContractEvent) {
         } => {
             let mut param = BTreeMap::new();
             param.insert(CONTRACT_PACKAGE_HASH, package.to_string());
-            param.insert("token_address", token_address.to_string());
+            param.insert(EVENT_TYPE, REFUNDED.to_string());
+            param.insert(TOKEN_ADDRESS, token_address.to_string());
             param.insert(
-                "staker_address",
+                STAKER_ADDRESS,
                 TryInto::<String>::try_into(*staker_address).unwrap(),
             );
-            param.insert("amount", amount.to_string());
+            param.insert(AMOUNT, amount.to_string());
             events.push(param);
         }
     };
