@@ -31,7 +31,7 @@ pub fn positive(amount: U256) -> Result<(), Error> {
 /// A `Result`. If the current block time is after the event time, the result will be `Ok(())`. If the current block time is before the event time, the result will be `Err(Error::BadTiming)`.
 pub fn after(event_time: u64) -> Result<(), Error> {
     if runtime::get_blocktime() < BlockTime::new(event_time) {
-        Err(Error::BadTiming)
+        Err(Error::AfterBadTiming)
     } else {
         Ok(())
     }
@@ -48,7 +48,7 @@ pub fn after(event_time: u64) -> Result<(), Error> {
 /// A `Result`. If the current block time is before the event time, the result will be `Ok(())`. If the current block time is after the event time, the result will be `Err(Error::BadTiming)`.
 pub fn before(event_time: u64) -> Result<(), Error> {
     if runtime::get_blocktime() >= BlockTime::new(event_time) {
-        Err(Error::BadTiming)
+        Err(Error::BeforeBadTiming)
     } else {
         Ok(())
     }

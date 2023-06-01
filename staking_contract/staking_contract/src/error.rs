@@ -11,34 +11,42 @@ pub enum Error {
     WrongArguments = 2,
     /// Not required stake.
     NotRequiredStake = 3,
-    /// Bad timing.
-    BadTiming = 4,
+    /// After bad timing.
+    AfterBadTiming = 4,
+    /// Before bad timing.
+    BeforeBadTiming = 5,
     /// Invalid context.
-    InvalidContext = 5,
+    InvalidContext = 6,
     /// Negative reward.
-    NegativeReward = 6,
+    NegativeReward = 7,
     /// Negative withdrawable reward.
-    NegativeWithdrawableReward = 7,
+    NegativeWithdrawableReward = 8,
     /// Negative amount.
-    NegativeAmount = 8,
+    NegativeAmount = 9,
     /// Missing contract package hash.
-    MissingContractPackageHash = 9,
+    MissingContractPackageHash = 10,
     /// Invalid contract package hash.
-    InvalidContractPackageHash = 10,
+    InvalidContractPackageHash = 11,
     /// Invalid contract hash.
-    InvalidContractHash = 11,
+    InvalidContractHash = 12,
     /// Withdraw check error early.
-    WithdrawCheckErrorEarly = 12,
+    WithdrawCheckErrorEarly = 13,
     /// Withdraw check error.
-    WithdrawCheckError = 13,
+    WithdrawCheckError = 14,
     /// Neither account hash nor neither contract package hash.
-    NeitherAccountHashNorNeitherContractPackageHash = 14,
+    NeitherAccountHashNorNeitherContractPackageHash = 15,
     /// Not a staker.
-    NotAStaker = 15,
+    NotAStaker = 16,
     /// Immediate caller address fail.
-    ImmediateCallerAddressFail = 16,
+    ImmediateCallerAddressFail = 17,
     /// Not staking contract package hash.
-    NotStakingContractPackageHash = 17,
+    NotStakingContractPackageHash = 18,
+    StakingEndsBeforeStakingStarts = 19,
+    WithdrawStartsStakingEnds = 20,
+    WithdrawEndsWithdrawStarts = 21,
+    StakingStartsNow = 22,
+    /// Subtraction underflow
+    CheckedSub = 23,
 }
 
 impl From<Error> for ApiError {
