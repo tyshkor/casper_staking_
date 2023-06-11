@@ -139,10 +139,6 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         data::staked_total()
     }
 
-    fn set_staked_total(&self, staked_total: U256) {
-        data::set_staked_total(staked_total)
-    }
-
     /// Returns the amount of tokens that have been staked by the given staker.
     fn amount_staked(&self, staker: Key) -> Result<U256, Error> {
         StakedTokens::instance()
