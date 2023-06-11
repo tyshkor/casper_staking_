@@ -212,7 +212,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         }
 
         // different flows depending on when staking ends
-        if runtime::get_blocktime() < BlockTime::new(self.staking_ends()) {
+        if runtime::get_blocktime() < BlockTime::new(self.withdraw_ends()) {
             self.withdraw_early(amount, caller_address)
         } else {
             self.withdraw_after_close(amount, caller_address)
