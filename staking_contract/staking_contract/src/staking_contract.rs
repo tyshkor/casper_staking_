@@ -43,6 +43,9 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         if staking_starts < u64::from(runtime::get_blocktime()) {
             return Err(Error::StakingStartsNow);
         }
+        if withdraw_ends != withdraw_starts {
+            return Err(Error::StakingStartsNow);
+        }
         data::set_name(name);
         data::set_address(address);
         data::set_staking_starts(staking_starts);
