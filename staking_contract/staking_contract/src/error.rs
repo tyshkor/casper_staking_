@@ -47,6 +47,8 @@ pub enum Error {
     StakingStartsNow = 22,
     /// Subtraction underflow
     CheckedSub = 23,
+    /// Gap between staking_ends and withdraw_starts
+    GapBetweenStakingEndsWithdrawStarts = 24,
 }
 
 impl From<Error> for ApiError {

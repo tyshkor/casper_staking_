@@ -43,6 +43,9 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         if staking_starts < u64::from(runtime::get_blocktime()) {
             return Err(Error::StakingStartsNow);
         }
+        if staking_ends != withdraw_starts {
+            return Err(Error::GapBetweenStakingEndsWithdrawStarts);
+        }
         data::set_name(name);
         data::set_address(address);
         data::set_staking_starts(staking_starts);
@@ -193,7 +196,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
             self.pay_to(staker_address, staker_address, refund);
         }
 
-        self.set_staking_total(self.staking_total() + remaining_token);
+        self.set_staked_total(self.staked_total() + remaining_token);
         self.set_staked_balance(self.staked_balance() + remaining_token);
         stakers_dict.add_stake(&Key::from(staker_address), &remaining_token);
         Ok(amount)
@@ -216,7 +219,7 @@ pub trait CEP20STK<Storage: ContractStorage>: ContractContext<Storage> {
         }
 
         // different flows depending on when staking ends
-        if runtime::get_blocktime() < BlockTime::new(self.staking_ends()) {
+        if runtime::get_blocktime() < BlockTime::new(self.withdraw_ends()) {
             self.withdraw_early(amount, caller_address)
         } else {
             self.withdraw_after_close(amount, caller_address)

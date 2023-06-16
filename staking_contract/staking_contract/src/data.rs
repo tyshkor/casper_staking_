@@ -26,7 +26,6 @@ pub const STAKING_ENDS: &str = "staking_ends";
 pub const WITHDRAW_STARTS: &str = "withdraw_starts";
 pub const WITHDRAW_ENDS: &str = "withdraw_ends";
 pub const STAKING_TOTAL: &str = "staking_total";
-pub const STAKE_BALANCE: &str = "stake_balance";
 pub const TOTAL_REWARD: &str = "total_reward";
 pub const EARLY_WITHDRAW_REWARD: &str = "early_withdraw_reward";
 pub const STAKED_TOTAL: &str = "staked_total";
@@ -191,7 +190,7 @@ pub fn staked_total() -> U256 {
     get_key(STAKED_TOTAL).unwrap_or_default()
 }
 
-/// Sets the total staked amount
+/// Sets staked total
 pub fn set_staked_total(staked_total: U256) {
     set_key(STAKED_TOTAL, staked_total);
 }

@@ -216,20 +216,27 @@ casper-client put-deploy \
 | 1    | PermissionDenied                                    |
 | 2    | WrongArguments                                      |
 | 3    | NotRequiredStake                                    |
-| 4    | BadTiming                                           |
-| 5    | InvalidContext                                      |
-| 6    | NegativeReward                                      |
-| 7    | NegativeWithdrawableReward                          |
-| 8    | NegativeAmount                                      |
-| 9    | MissingContractPackageHash                          |
-| 10   | InvalidContractPackageHash                          |
-| 11   | InvalidContractHash                                 |
-| 12   | WithdrawCheckErrorEarly                             |
-| 13   | WithdrawCheckError                                  |
-| 14   | NotAStaker                                          |
-| 15   | NotAStaker                                          |
-| 16   | ImmediateCallerAddressFail                          |
-| 17   | NotStakingContractPackageHash                       |
+| 4    | AfterBadTiming                                      |
+| 5    | BeforeBadTiming                                     |
+| 6    | InvalidContext                                      |
+| 7    | NegativeReward                                      |
+| 8    | NegativeWithdrawableReward                          |
+| 9    | NegativeAmount                                      |
+| 10   | MissingContractPackageHash                          |
+| 11   | InvalidContractPackageHash                          |
+| 12   | InvalidContractHash                                 |
+| 13   | WithdrawCheckErrorEarly                             |
+| 14   | WithdrawCheckError                                  |
+| 15   | NeitherAccountHashNorNeitherContractPackageHash     |
+| 16   | NotAStaker                                          |
+| 17   | ImmediateCallerAddressFail                          |
+| 18   | NotStakingContractPackageHash                       |
+| 19   | StakingEndsBeforeStakingStarts                      |
+| 20   | WithdrawStartsStakingEnds                           |
+| 21   | WithdrawEndsWithdrawStarts                          |
+| 22   | StakingStartsNow                                    |
+| 23   | CheckedSub                                          |
+| 24   | GapBetweenStakingEndsWithdrawStarts                 |
 
 ## Contributing
 
