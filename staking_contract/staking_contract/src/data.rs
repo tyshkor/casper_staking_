@@ -190,6 +190,11 @@ pub fn staked_total() -> U256 {
     get_key(STAKED_TOTAL).unwrap_or_default()
 }
 
+/// Sets staked total
+pub fn set_staked_total(staked_total: U256) {
+    set_key(STAKED_TOTAL, staked_total);
+}
+
 /// Retrieves the reward balance
 pub fn reward_balance() -> U256 {
     get_key(REWARD_BALANCE).unwrap_or_default()
