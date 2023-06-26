@@ -118,11 +118,19 @@ The following is an example of deploying the installation of the contract via th
 
 ```bash
 casper-client put-deploy \
-    --chain-name casper-test \
-    --node-address http://44.208.234.65:7777 \
-    --secret-key ./staking_contract/keys/secret_key.pem \
-    --session-path ./staking_contract/target/wasm32-unknown-unknown/release/staking_contract.wasm \
-    --payment-amount 220000000000
+  --chain-name casper-test \
+  --node-address http://44.208.234.65:7777 \
+  --secret-key ./staking_contract/keys/secret_key.pem \
+  --session-path ./staking_contract/target/wasm32-unknown-unknown/release/staking_contract.wasm \
+  --payment-amount 200000000000 \
+  --session-arg "name:string='FerrumX'" \
+  --session-arg "address:string='782fe4b0bb944e6b1fd2c5a1456a78f0e2193d47dee9b1af5711d6b6e6aaca60'" \
+  --session-arg "staking_starts:u64='1687355755842'" \
+  --session-arg "staking_ends:u64='1885623567584'" \
+  --session-arg "withdraw_starts:u64='1885623567584'" \
+  --session-arg "withdraw_ends:u64='1885623567584'" \
+  --session-arg "staking_total:U256='500000'" \
+  --session-arg "erc20_contract_package_hash:Key='hash-e222974816f70ca96fc4002a696bb552e2959d3463158cd82a7bfc8a94c03473'"
 ```
 
 ##### Example Stake
@@ -131,9 +139,9 @@ casper-client put-deploy \
      --chain-name casper-test \
      --node-address http://44.208.234.65:7777 \
      --secret-key ./staking_contract/keys/secret_key.pem \
-     --session-hash hash-6b6298c3f8c954e4b9a5fa2404768d1c08fd5bfc2927f386aaf0826178d3be5b \
+     --session-hash hash-676569e1bab0db9281ca7fb7aaaa42b560e2a20ff5eaa6f1b96d31f006db9244 \
      --session-entry-point stake \
-     --payment-amount 5000000000 \
+     --payment-amount 6000000000 \
      --session-arg "amount:u256='5'" 
 ```
 
@@ -143,7 +151,7 @@ casper-client put-deploy \
     --chain-name casper-test \
     --node-address http://44.208.234.65:7777 \
     --secret-key ./staking_contract/keys/secret_key.pem \
-    --session-hash hash-ed9d7674bbfe432208780efe4afcae163a588c80eb499596c5f4085f50756cef \
+    --session-hash hash-676569e1bab0db9281ca7fb7aaaa42b560e2a20ff5eaa6f1b96d31f006db9244 \
     --session-entry-point get_current_reward \
     --payment-amount 50000000000 
 ```
@@ -154,7 +162,7 @@ casper-client put-deploy \
     --chain-name casper-test \
     --node-address http://44.208.234.65:7777 \
     --secret-key ./staking_contract/keys/secret_key.pem \
-    --session-hash hash-5eba0235bbd34613c19163a65ee16ea6c4019fbf5f5e7c8e07fbebd52d92eef4 \
+    --session-hash hash-676569e1bab0db9281ca7fb7aaaa42b560e2a20ff5eaa6f1b96d31f006db9244 \
     --session-entry-point staker_reward \
     --payment-amount 50000000000 \
     --session-arg "staker_address:key='hash-8c07f894322d86705f9804d682a9ed6c9cd4be7a8fc6889d20b446e1d852fa8c'"
@@ -166,7 +174,7 @@ casper-client put-deploy \
     --chain-name casper-test \
     --node-address http://44.208.234.65:7777 \
     --secret-key ./staking_contract/keys/secret_key.pem \
-    --session-hash hash-5eba0235bbd34613c19163a65ee16ea6c4019fbf5f5e7c8e07fbebd52d92eef4 \
+    --session-hash hash-676569e1bab0db9281ca7fb7aaaa42b560e2a20ff5eaa6f1b96d31f006db9244 \
     --session-entry-point add_reward \
     --payment-amount 50000000000 \
     --session-arg "reward_amount:u256='1'" \
@@ -179,7 +187,7 @@ casper-client put-deploy \
     --chain-name casper-test \
     --node-address http://44.208.234.65:7777 \
     --secret-key ./staking_contract/keys/secret_key.pem \
-    --session-hash hash-5eba0235bbd34613c19163a65ee16ea6c4019fbf5f5e7c8e07fbebd52d92eef4 \
+    --session-hash hash-676569e1bab0db9281ca7fb7aaaa42b560e2a20ff5eaa6f1b96d31f006db9244 \
     --session-entry-point amount_staked \
     --payment-amount 50000000000 \
     --session-arg "amount:u256='5'" \
